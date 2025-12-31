@@ -1,0 +1,103 @@
+"""
+Skill Types - Core type definitions for Skill-Governed Architecture.
+
+This module defines the fundamental types used in the skill-based governance system.
+Skills are abstract behavioral intentions, NOT concrete actions or tools.
+"""
+from dataclasses import dataclass, field
+from typing import Dict, List, Optional, Any, Callable
+from enum import Enum
+
+
+class SkillOutcome(Enum):
+    """Skill processing outcomes."""
+    APPROVED = "APPROVED"
+    REJECTED = "REJECTED"
+    RETRY_SUCCESS = "RETRY_SUCCESS"
+    UNCERTAIN = "UNCERTAIN"
+    ABORTED = "ABORTED"
+
+
+@dataclass
+class SkillProposal:
+    """
+    LLM's skill proposal output.
+    
+    The LLM proposes a skill (abstract behavior) rather than specifying
+    concrete actions or tools. The Broker validates and maps to execution.
+    """
+    skill_name: str              # Abstract behavior name (e.g., "buy_insurance")
+    agent_id: str
+    reasoning: Dict[str, str]    # PMT appraisals: {"threat": "...", "coping": "..."}
+    confidence: float = 1.0      # Agent's confidence in this choice (0.0-1.0)
+    raw_output: str = ""
+    
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "skill_name": self.skill_name,
+            "agent_id": self.agent_id,
+            "reasoning": self.reasoning,
+            "confidence": self.confidence,
+            "raw_output": self.raw_output[:500]
+        }
+
+
+@dataclass
+class SkillDefinition:
+    """
+    Skill definition in the registry.
+    
+    This is the "institutional charter" for a skill - it defines what the skill
+    means, who can use it, under what conditions, and what state changes it allows.
+    """
+    skill_id: str                          # Unique identifier
+    description: str                       # Human-readable description
+    eligible_agent_types: List[str]        # Agent types that can use this skill
+    preconditions: List[str]               # Required context conditions
+    institutional_constraints: Dict[str, Any]  # Domain-specific rules
+    allowed_state_changes: List[str]       # Fields this skill can modify
+    implementation_mapping: str            # Maps to simulation command
+
+
+@dataclass
+class ValidationResult:
+    """Result from a skill validator."""
+    valid: bool
+    validator_name: str
+    errors: List[str] = field(default_factory=list)
+    warnings: List[str] = field(default_factory=list)
+    metadata: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class ApprovedSkill:
+    """
+    A skill that has passed all validation.
+    
+    Only approved skills can be executed by the simulation engine.
+    """
+    skill_name: str
+    agent_id: str
+    approval_status: str         # "APPROVED", "REJECTED", "DEFERRED"
+    validation_results: List[ValidationResult] = field(default_factory=list)
+    execution_mapping: str = ""  # What the simulation engine executes
+    parameters: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class ExecutionResult:
+    """Result from simulation engine execution."""
+    success: bool
+    state_changes: Dict[str, Any] = field(default_factory=dict)
+    error: Optional[str] = None
+
+
+@dataclass
+class SkillBrokerResult:
+    """Complete result from skill broker processing."""
+    outcome: SkillOutcome
+    skill_proposal: Optional[SkillProposal]
+    approved_skill: Optional[ApprovedSkill]
+    execution_result: Optional[ExecutionResult]
+    validation_errors: List[str] = field(default_factory=list)
+    retry_count: int = 0
