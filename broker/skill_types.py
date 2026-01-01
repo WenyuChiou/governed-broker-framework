@@ -29,6 +29,7 @@ class SkillProposal:
     skill_name: str              # Abstract behavior name (e.g., "buy_insurance")
     agent_id: str
     reasoning: Dict[str, str]    # PMT appraisals: {"threat": "...", "coping": "..."}
+    agent_type: str = "default"  # Agent type for multi-agent scenarios
     confidence: float = 1.0      # Agent's confidence in this choice (0.0-1.0)
     raw_output: str = ""
     
@@ -36,6 +37,7 @@ class SkillProposal:
         return {
             "skill_name": self.skill_name,
             "agent_id": self.agent_id,
+            "agent_type": self.agent_type,
             "reasoning": self.reasoning,
             "confidence": self.confidence,
             "raw_output": self.raw_output[:500]

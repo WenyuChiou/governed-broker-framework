@@ -79,7 +79,8 @@ class SkillBrokerEngine:
         step_id: int,
         run_id: str,
         seed: int,
-        llm_invoke: Callable[[str], str]
+        llm_invoke: Callable[[str], str],
+        agent_type: str = "default"
     ) -> SkillBrokerResult:
         """
         Process one complete decision step through skill governance.
@@ -107,7 +108,7 @@ class SkillBrokerEngine:
         skill_proposal = self.model_adapter.parse_output(raw_output, {
             "agent_id": agent_id,
             "is_elevated": context.get("elevated", False),
-            "agent_type": "homeowner"
+            "agent_type": agent_type
         })
         
         if skill_proposal is None:
@@ -117,7 +118,7 @@ class SkillBrokerEngine:
         # ③ Skill validation
         validation_context = {
             "agent_state": context,
-            "agent_type": "homeowner",
+            "agent_type": agent_type,
             "flood_status": "Flood occurred" if context.get("flood_event") else "No flood"
         }
         
@@ -135,7 +136,7 @@ class SkillBrokerEngine:
             skill_proposal = self.model_adapter.parse_output(raw_output, {
                 "agent_id": agent_id,
                 "is_elevated": context.get("elevated", False),
-                "agent_type": "homeowner"
+                "agent_type": agent_type
             })
             
             if skill_proposal:
