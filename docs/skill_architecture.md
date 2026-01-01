@@ -1,103 +1,107 @@
-# Skill-Governed Architecture (v0.2)
+# Skill-Governed Architecture (v0.3)
 
 ## Overview
 
-Version 0.2 introduces a **Skill-Governed Architecture** that elevates governance from action/tool-level to behavioral skill-level control.
+Version 0.3 adds **Multi-LLM Extensibility** with YAML-driven configuration.
 
 ---
 
-## Architecture Comparison
-
-### v0.1 (Action-Based) vs v0.2 (Skill-Governed)
+## v0.3 Architecture (Multi-LLM Ready)
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                         v0.1 ACTION-BASED                                    │
+│                       CONFIGURATION LAYER                                   │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│   LLM Agent                                                                 │
-│       │                                                                     │
-│       ▼ action_code: "1", "2", "3"...                                      │
-│   ┌─────────────────────────────────┐                                      │
-│   │     Governed Broker Layer       │                                      │
-│   │  ┌─────────┐  ┌──────────────┐  │                                      │
-│   │  │ Context │→ │  Validation  │  │  • Format check                      │
-│   │  │ Builder │  │ (Schema+PMT) │  │  • PMT consistency only              │
-│   │  └─────────┘  └──────────────┘  │                                      │
-│   │           ↓                     │                                      │
-│   │   ActionRequest → Execution    │                                      │
-│   └─────────────────────────────────┘                                      │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
-
+│  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐          │
+│  │ providers.yaml   │  │ domain.yaml      │  │ skill_registry   │          │
+│  │ (Multi-LLM)      │  │ (State/Actions)  │  │ .yaml            │          │
+│  └────────┬─────────┘  └────────┬─────────┘  └────────┬─────────┘          │
+└───────────┼───────────────────┼───────────────────────┼─────────────────────┘
+            │                    │                       │
+            ▼                    ▼                       ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                     v0.2 SKILL-GOVERNED                                      │
+│                         LLM PROVIDER LAYER                                   │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│   LLM Agent                                                                 │
-│       │                                                                     │
-│       ▼ skill_name: "buy_insurance", "elevate_house"...                    │
-│   ┌─────────────────────────────────────────────────────────────┐          │
-│   │              Governed Broker Layer                           │          │
-│   │  ┌─────────┐  ┌────────────────┐  ┌─────────────────────┐   │          │
-│   │  │ Model   │→ │ SkillProposal  │→ │   SkillRegistry     │   │          │
-│   │  │ Adapter │  │ (abstract      │  │ (institutional      │   │          │
-│   │  │         │  │  behavior)     │  │  charter)           │   │          │
-│   │  └─────────┘  └────────────────┘  └─────────────────────┘   │          │
-│   │                      ↓                                       │          │
-│   │  ┌──────────────────────────────────────────────────────┐   │          │
-│   │  │              Validation Pipeline                      │   │          │
-│   │  │  Admissibility → Feasibility → Constraints → Safety  │   │          │
-│   │  └──────────────────────────────────────────────────────┘   │          │
-│   │                      ↓                                       │          │
-│   └─────────────────────────────────────────────────────────────┘          │
-│                                                                             │
+│  ┌────────────────────────────────────────────────────────────────────┐     │
+│  │                    LLMProviderRegistry                              │     │
+│  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐                 │     │
+│  │  │OllamaProvider│ │OpenAIProvider│ │MoreProviders│                 │     │
+│  │  │(llama,gemma) │ │(gpt-4,gpt-3)│  │(anthropic)  │                 │     │
+│  │  └─────────────┘  └─────────────┘  └─────────────┘                 │     │
+│  └────────────────────────────────────────────────────────────────────┘     │
+│                    │                                                         │
+│  ┌─────────────────┼───────────────────────────────────────────────────┐    │
+│  │                 ▼                                                    │    │
+│  │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────────┐  │    │
+│  │  │   RateLimiter   │  │  AsyncAdapter   │  │   RetryHandler      │  │    │
+│  │  │(token bucket)   │  │ (batch invoke)  │  │(exp. backoff)       │  │    │
+│  │  └─────────────────┘  └─────────────────┘  └─────────────────────┘  │    │
+│  └──────────────────────────────────────────────────────────────────────┘    │
+└────────────────────────────────────────────────────────────────────────────┘
+                                │
+                                ▼ LLM Response
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        GOVERNED BROKER LAYER                                 │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  ┌──────────────────┐                                                       │
+│  │DomainConfigLoader│ ←── domain.yaml                                       │
+│  └────────┬─────────┘                                                       │
+│           │                                                                  │
+│           ▼                                                                  │
+│  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────────────┐   │
+│  │   ModelAdapter   │→ │  SkillProposal   │→ │     SkillRegistry        │   │
+│  │  (UnifiedAdapter)│  │ (skill_name,     │  │ (from_domain_config())   │   │
+│  │  + preprocessor  │  │  reasoning)      │  │                          │   │
+│  └──────────────────┘  └──────────────────┘  └──────────────────────────┘   │
+│                                │                                             │
+│                                ▼                                             │
+│  ┌───────────────────────────────────────────────────────────────────────┐  │
+│  │                    VALIDATION PIPELINE                                 │  │
+│  │  ┌────────────┐  ┌────────────┐  ┌────────────┐  ┌─────────────────┐  │  │
+│  │  │Admissibility│→│Feasibility │→│Constraints │→│ EffectSafety    │  │  │
+│  │  └────────────┘  └────────────┘  └────────────┘  └─────────────────┘  │  │
+│  │                                                          │             │  │
+│  │  ┌────────────────┐  ┌────────────────┐                  ▼             │  │
+│  │  │PMTConsistency  │→ │ Uncertainty    │→→→→→→ APPROVED / REJECTED     │  │
+│  │  └────────────────┘  └────────────────┘                               │  │
+│  └───────────────────────────────────────────────────────────────────────┘  │
+│                                │                                             │
+│           ┌────────────────────┴───────────────────────┐                    │
+│           ▼                                            ▼                    │
+│  ┌──────────────────┐                        ┌──────────────────┐          │
+│  │  ValidatorFactory │ ←── Dynamic Load      │   AuditWriter    │          │
+│  │ (from YAML config)│                       │ (skill_audit.jsonl)│        │
+│  └──────────────────┘                        └──────────────────┘          │
+└────────────────────────────────────────────────────────────────────────────┘
+                                │
+                                ▼ Approved Skill (SYSTEM-ONLY)
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                       SIMULATION / WORLD LAYER                               │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐          │
+│  │ SimulationEngine │  │   Agent State    │  │   Environment    │          │
+│  │ (ExecutionInterface)│ (elevated,       │  │ (flood_event,    │          │
+│  │                   │  │  has_insurance)  │  │  year, memory)   │          │
+│  └──────────────────┘  └──────────────────┘  └──────────────────┘          │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Complete Data Flow
+## v0.3 New Components
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    SIMULATION / WORLD                           │
-│  ┌───────────┐  ┌───────────┐  ┌───────────┐  ┌───────────┐    │
-│  │Environment│  │  Memory   │  │  Social   │  │Agent State│    │
-│  └─────┬─────┘  └─────┬─────┘  └─────┬─────┘  └─────┬─────┘    │
-└────────┼──────────────┼──────────────┼──────────────┼───────────┘
-         └──────────────┴──────────────┴──────────────┘
-                               │
-                               ▼ READ-ONLY
-                    ┌─────────────────────┐
-                    │   Context Builder   │
-                    └──────────┬──────────┘
-                               │
-                               ▼ Bounded Context
-                    ┌─────────────────────┐
-                    │      LLM Agent      │
-                    └──────────┬──────────┘
-                               │
-                               ▼ Skill Proposal
-         ┌─────────────────────────────────────────────────────┐
-         │              GOVERNED BROKER                         │
-         │  ┌─────────────┐  ┌───────────┐  ┌───────────────┐  │
-         │  │Model Adapter│→ │ Registry  │→ │  Validation   │  │
-         │  └─────────────┘  └───────────┘  └───────────────┘  │
-         │                         ↓                            │
-         │               ┌─────────────────┐                    │
-         │               │  Audit Writer   │                    │
-         │               └─────────────────┘                    │
-         └────────────────────────┬────────────────────────────┘
-                                  │
-                                  ▼ Approved Skill (SYSTEM-ONLY)
-                    ┌─────────────────────┐
-                    │  Simulation Engine  │
-                    │  (execute & update) │
-                    └──────────┬──────────┘
-                               │
-                               └─────────────────────────────┐
-                                                             │
+| Component | File | Purpose |
+|-----------|------|---------|
+| `LLMProviderRegistry` | `interfaces/llm_provider.py` | Multi-LLM management |
+| `OllamaProvider` | `providers/ollama.py` | Local model support |
+| `OpenAIProvider` | `providers/openai_provider.py` | Cloud API support |
+| `RateLimiter` | `providers/rate_limiter.py` | API rate control |
+| `AsyncAdapter` | `broker/async_adapter.py` | Concurrent processing |
+| `DomainConfigLoader` | `config/loader.py` | YAML domain loading |
+| `ValidatorFactory` | `validators/factory.py` | Dynamic validator loading |
+
+---
+
                     ┌────────────────────────────────────────┘
                     │ FEEDBACK: State updates flow back
                     ▼
