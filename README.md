@@ -27,7 +27,7 @@
 ```bash
 pip install -r requirements.txt
 cd examples/flood_adaptation
-python run.py --model llama3.2:3b --num-agents 100 --num-years 10
+python run_skill_governed.py --model llama3.2:3b --num-agents 100 --num-years 10
 ```
 
 ### Architecture
@@ -75,7 +75,7 @@ MIT
 ```bash
 pip install -r requirements.txt
 cd examples/flood_adaptation
-python run.py --model llama3.2:3b --num-agents 100 --num-years 10
+python run_skill_governed.py --model llama3.2:3b --num-agents 100 --num-years 10
 ```
 
 ### 架構

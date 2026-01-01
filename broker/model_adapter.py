@@ -68,34 +68,63 @@ class OllamaAdapter(ModelAdapter):
         "3": "do_nothing"
     }
     
+    # Valid skill names for direct parsing
+    VALID_SKILLS = {"buy_insurance", "elevate_house", "relocate", "do_nothing"}
+    
     def parse_output(self, raw_output: str, context: Dict[str, Any]) -> Optional[SkillProposal]:
-        """Parse Ollama model output into SkillProposal."""
+        """Parse Ollama model output into SkillProposal.
+        
+        Supports both:
+        - New format: 'Skill: buy_insurance' (first line)
+        - Legacy format: 'Final Decision: 1' or 'Final Decision: buy_insurance'
+        """
         agent_id = context.get("agent_id", "unknown")
         is_elevated = context.get("is_elevated", False)
         
         # Extract reasoning
         threat_appraisal = ""
         coping_appraisal = ""
-        decision_code = ""
+        skill_name = None
         
         lines = raw_output.strip().split('\n')
         for line in lines:
             line = line.strip()
-            if line.lower().startswith("threat appraisal:"):
+            
+            # NEW FORMAT: Look for "Skill:" or "Decision:" first (should be first line)
+            if line.lower().startswith("skill:") or (line.lower().startswith("decision:") and not skill_name):
+                decision_text = line.split(":", 1)[1].strip().lower() if ":" in line else ""
+                for skill in self.VALID_SKILLS:
+                    if skill in decision_text:
+                        skill_name = skill
+                        break
+            
+            # Extract PMT reasoning
+            elif line.lower().startswith("threat appraisal:"):
                 threat_appraisal = line.split(":", 1)[1].strip() if ":" in line else ""
             elif line.lower().startswith("coping appraisal:"):
                 coping_appraisal = line.split(":", 1)[1].strip() if ":" in line else ""
-            elif line.lower().startswith("final decision:"):
-                decision_text = line.split(":", 1)[1].strip() if ":" in line else ""
-                # Extract digit
-                for char in decision_text:
-                    if char.isdigit():
-                        decision_code = char
+            
+            # LEGACY FORMAT: Also check "Final Decision:" for backward compatibility
+            elif line.lower().startswith("final decision:") and not skill_name:
+                decision_text = line.split(":", 1)[1].strip().lower() if ":" in line else ""
+                
+                # Try to find skill name directly
+                for skill in self.VALID_SKILLS:
+                    if skill in decision_text:
+                        skill_name = skill
                         break
+                
+                # Fallback: try to find digit for legacy support
+                if not skill_name:
+                    for char in decision_text:
+                        if char.isdigit():
+                            skill_map = self.SKILL_MAP_ELEVATED if is_elevated else self.SKILL_MAP_NON_ELEVATED
+                            skill_name = skill_map.get(char, "do_nothing")
+                            break
         
-        # Map decision code to skill name
-        skill_map = self.SKILL_MAP_ELEVATED if is_elevated else self.SKILL_MAP_NON_ELEVATED
-        skill_name = skill_map.get(decision_code, "do_nothing")
+        # Default to do_nothing if nothing found
+        if not skill_name:
+            skill_name = "do_nothing"
         
         return SkillProposal(
             skill_name=skill_name,

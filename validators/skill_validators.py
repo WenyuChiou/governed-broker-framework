@@ -10,8 +10,12 @@ The validation pipeline operates on skill proposals (NOT actions/tools):
 from abc import ABC, abstractmethod
 from typing import Dict, Any, List
 
-from broker.skill_types import SkillProposal, ValidationResult
-from broker.skill_registry import SkillRegistry
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from skill_types import SkillProposal, ValidationResult
+from skill_registry import SkillRegistry
 
 
 class SkillValidator(ABC):
@@ -166,6 +170,7 @@ class PMTConsistencyValidator(SkillValidator):
     HIGH_THREAT_KEYWORDS = ["worried", "concerned", "scared", "at risk", "dangerous", "vulnerable", "threatened"]
     HIGH_EFFICACY_KEYWORDS = ["can protect", "effective", "would help", "prevent damage", "reduce risk"]
     LOW_THREAT_KEYWORDS = ["not worried", "safe", "no risk", "unlikely", "minimal"]
+    CANNOT_AFFORD_KEYWORDS = ["cannot afford", "too expensive", "not enough money", "high cost", "financial burden"]
     
     def validate(self, proposal: SkillProposal, context: Dict[str, Any],
                  registry: SkillRegistry) -> ValidationResult:
@@ -193,11 +198,55 @@ class PMTConsistencyValidator(SkillValidator):
             if any(kw in threat for kw in ["feel safe", "not worried", "no concern"]):
                 errors.append("Flood Response: Claims safe despite flood event this year")
         
+        # Rule 4: Cannot afford + Expensive option (Aligned with MCP)
+        is_expensive = skill in ["elevate_house", "relocate"]
+        if is_expensive and any(kw in coping for kw in self.CANNOT_AFFORD_KEYWORDS):
+            errors.append("Claims cannot afford but chose expensive option")
+            
+        # Rule 5: Already have + Buy again - ALLOWED for annual renewal models
+        # if "already have insurance" in coping and skill == "buy_insurance":
+        #    errors.append("Claims already has insurance but chose to buy")
+        
         return ValidationResult(
             valid=len(errors) == 0,
             validator_name=self.name,
             errors=errors
         )
+
+
+class UncertaintyValidator(SkillValidator):
+    """
+    Validates response certainty.
+    
+    Detects ambiguous or uncertain language in LLM responses that may indicate
+    low confidence in the decision. Such responses trigger a retry.
+    """
+    
+    name = "UncertaintyValidator"
+    
+    # Keywords indicating uncertainty in the response
+    UNCERTAIN_KEYWORDS = [
+        "maybe", "perhaps", "not sure", "i think", "might",
+        "could be", "possibly", "i believe", "uncertain",
+        "don't know", "hard to say", "difficult to decide",
+        "i'm unsure", "can't decide", "not certain"
+    ]
+    
+    def validate(self, proposal: SkillProposal, context: Dict[str, Any],
+                 registry: SkillRegistry) -> ValidationResult:
+        raw = proposal.raw_output.lower()
+        
+        # Check for uncertain keywords
+        found_keywords = [kw for kw in self.UNCERTAIN_KEYWORDS if kw in raw]
+        
+        if found_keywords:
+            return ValidationResult(
+                valid=False,
+                validator_name=self.name,
+                errors=[f"Uncertain language detected: {', '.join(found_keywords[:3])}"]
+            )
+        
+        return ValidationResult(valid=True, validator_name=self.name)
 
 
 def create_default_validators() -> List[SkillValidator]:
@@ -207,5 +256,6 @@ def create_default_validators() -> List[SkillValidator]:
         ContextFeasibilityValidator(),
         InstitutionalConstraintValidator(),
         EffectSafetyValidator(),
-        PMTConsistencyValidator()
+        PMTConsistencyValidator(),
+        # UncertaintyValidator()  # Temporarily disabled - triggers too often on PMT reasoning
     ]

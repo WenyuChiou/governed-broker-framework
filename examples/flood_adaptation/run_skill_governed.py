@@ -1,36 +1,58 @@
 """
-Skill-Governed Flood Adaptation Example
+Run Skill-Governed Flood Adaptation Example
 
-This example demonstrates how to use the Skill-Governed Architecture (v0.2)
-for building LLM-driven Agent-Based Models.
+This example demonstrates the Skill-Governed Architecture (v0.2) where:
+- LLM agents propose SKILLS (abstract behaviors), not actions/tools
+- Broker validates skills through SkillRegistry and validators
+- Execution happens ONLY through simulation engine (system-only)
 
-Quick Start:
-    python run_skill_governed.py --model llama3.2:3b --num-agents 10 --num-years 5
-
-Key Components:
-    1. SkillRegistry - Define allowed skills and their constraints
-    2. SkillBrokerEngine - Orchestrate LLM → Validation → Execution
-    3. ModelAdapter - Parse LLM outputs into SkillProposals
-    4. Validators - 5-stage validation pipeline
+This example is aligned with the latest MCP framework updates.
 """
 import sys
+import json
 import argparse
+import random
 from pathlib import Path
+from datetime import datetime
 from dataclasses import dataclass, field
-from typing import Dict, List, Any, Optional, Callable
+from typing import Dict, List, Any, Optional
 
-# Add parent paths for imports
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+# Add parent path to allow importing governed_broker_framework if running from examples
+# Alternatively, install the package with pip install -e .
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from langchain_ollama import ChatOllama
+from governed_broker_framework.broker.skill_types import ApprovedSkill, ExecutionResult
+from governed_broker_framework.broker.skill_registry import create_flood_adaptation_registry
+from governed_broker_framework.broker.model_adapter import get_adapter
+from governed_broker_framework.broker.skill_broker_engine import SkillBrokerEngine
+from governed_broker_framework.broker.audit_writer import AuditWriter, AuditConfig
+from governed_broker_framework.validators.skill_validators import create_default_validators
 
 # =============================================================================
-# STEP 1: DEFINE YOUR DOMAIN TYPES
+# CONSTANTS
+# =============================================================================
+
+PAST_EVENTS = [
+    "A flood event about 15 years ago caused $500,000 in city-wide damages; my neighborhood was not impacted at all",
+    "Some residents reported delays when processing their flood insurance claims",
+    "A few households in the area elevated their homes before recent floods",
+    "The city previously introduced a program offering elevation support to residents",
+    "News outlets have reported a possible trend of increasing flood frequency and severity in recent years"
+]
+
+MEMORY_WINDOW = 5
+RANDOM_MEMORY_RECALL_CHANCE = 0.2
+NUM_AGENTS = 100
+GRANT_PROBABILITY = 0.5
+
+
+# =============================================================================
+# SIMULATION LAYER (System-only execution)
 # =============================================================================
 
 @dataclass
-class Agent:
-    """Your agent type. Customize fields as needed."""
+class FloodAgent:
+    """Agent in flood adaptation simulation."""
     id: str
     elevated: bool = False
     has_insurance: bool = False
@@ -38,275 +60,406 @@ class Agent:
     memory: List[str] = field(default_factory=list)
     trust_in_insurance: float = 0.3
     trust_in_neighbors: float = 0.4
-
+    flood_threshold: float = 0.5
+    
     @property
     def is_active(self) -> bool:
         return not self.relocated
+    
+    def get_adaptation_state(self) -> str:
+        if self.relocated:
+            return "Relocate"
+        elif self.elevated and self.has_insurance:
+            return "Both Flood Insurance and House Elevation"
+        elif self.elevated:
+            return "Only House Elevation"
+        elif self.has_insurance:
+            return "Only Flood Insurance"
+        else:
+            return "Do Nothing"
 
 
 @dataclass
-class Environment:
-    """Your environment state. Customize as needed."""
+class FloodEnvironment:
+    """Environment state."""
     year: int = 0
     flood_event: bool = False
+    flood_severity: float = 0.0
 
 
-# =============================================================================
-# STEP 2: DEFINE YOUR SKILL REGISTRY
-# =============================================================================
-
-# Skills are the abstract behaviors your agents can perform
-SKILL_DEFINITIONS = {
-    "buy_insurance": {
-        "description": "Purchase flood insurance. Lower cost, provides partial financial protection.",
-        "preconditions": [],  # No preconditions
-        "constraints": {"annual": True},  # Can be done each year
-        "effects": {"has_insurance": True}
-    },
-    "elevate_house": {
-        "description": "Elevate your home structure. High upfront cost but prevents damage.",
-        "preconditions": [{"field": "elevated", "value": False}],  # Only if not already elevated
-        "constraints": {"once_only": True},
-        "effects": {"elevated": True}
-    },
-    "relocate": {
-        "description": "Move to a safer location. Eliminates flood risk permanently.",
-        "preconditions": [{"field": "relocated", "value": False}],
-        "constraints": {"once_only": True},
-        "effects": {"relocated": True}
-    },
-    "do_nothing": {
-        "description": "Take no action this year. No cost but remains exposed to risk.",
-        "preconditions": [],
-        "constraints": {},
-        "effects": {}
-    }
-}
-
-
-def get_available_skills(agent: Agent) -> Dict[str, str]:
-    """Get skills available to this agent based on their state."""
-    skills = {}
-    for skill_id, skill_def in SKILL_DEFINITIONS.items():
-        # Check preconditions
-        can_use = True
-        for precond in skill_def["preconditions"]:
-            if getattr(agent, precond["field"], None) != precond["value"]:
-                can_use = False
+class FloodSimulation:
+    """Flood adaptation simulation - System-only execution layer."""
+    
+    def __init__(self, num_agents: int = 100, seed: int = 42, flood_years: List[int] = None):
+        self.seed = seed
+        random.seed(seed)
+        
+        self.agents: Dict[str, FloodAgent] = {}
+        self.environment = FloodEnvironment()
+        self.grant_available = False
+        
+        # Try to load from CSV files (relative to script or project root)
+        # Assuming run from examples/flood_adaptation or root
+        import pandas as pd
+        
+        # Look for CSVs in likely locations
+        possible_paths = [
+            Path(__file__).parent,
+            Path(__file__).parent.parent.parent
+        ]
+        
+        agent_file = None
+        flood_file = None
+        
+        for p in possible_paths:
+            if (p / "agent_initial_profiles.csv").exists():
+                agent_file = p / "agent_initial_profiles.csv"
+                flood_file = p / "flood_years.csv"
                 break
-        if can_use:
-            skills[skill_id] = skill_def["description"]
-    return skills
+        
+        if agent_file and agent_file.exists() and flood_file.exists():
+            print(f"📂 Loading from CSV files: {agent_file}")
+            df = pd.read_csv(agent_file)
+            flood_df = pd.read_csv(flood_file)
+            self.flood_years = sorted(flood_df['Flood_Years'].tolist())
+            
+            for _, row in df.iterrows():
+                if 'memory' in row and pd.notna(row['memory']):
+                    memory = row['memory'].split(' | ')
+                else:
+                    memory = random.sample(PAST_EVENTS, k=random.randint(2, 3))
+                
+                self.agents[row['id']] = FloodAgent(
+                    id=row['id'],
+                    elevated=bool(row['elevated']),
+                    has_insurance=bool(row['has_insurance']),
+                    relocated=bool(row.get('relocated', False)),
+                    memory=memory,
+                    trust_in_insurance=float(row['trust_in_insurance']),
+                    trust_in_neighbors=float(row['trust_in_neighbors']),
+                    flood_threshold=float(row.get('flood_threshold', 0.5))
+                )
+            print(f"✅ Loaded {len(self.agents)} agents, flood years: {self.flood_years}")
+        else:
+            print(f"📂 No CSV files found, using random initialization")
+            for i in range(1, num_agents + 1):
+                initial_memory = random.sample(PAST_EVENTS, k=random.randint(2, 3))
+                self.agents[f"Agent_{i}"] = FloodAgent(
+                    id=f"Agent_{i}",
+                    memory=initial_memory,
+                    has_insurance=random.choice([True, False]),
+                    trust_in_insurance=round(random.uniform(0.2, 0.5), 2),
+                    trust_in_neighbors=round(random.uniform(0.35, 0.55), 2),
+                    flood_threshold=round(random.uniform(0.4, 0.9), 2)
+                )
+            self.flood_years = flood_years or [3, 4, 9]
+    
+    def advance_year(self) -> FloodEnvironment:
+        self.environment.year += 1
+        self.environment.flood_event = self.environment.year in self.flood_years
+        if self.environment.flood_event:
+            self.environment.flood_severity = random.uniform(0.5, 1.0)
+        return self.environment
+    
+    def execute_skill(self, approved_skill: ApprovedSkill) -> ExecutionResult:
+        """Execute an approved skill - SYSTEM ONLY."""
+        agent = self.agents.get(approved_skill.agent_id)
+        if not agent or agent.relocated:
+            return ExecutionResult(success=False, error="Agent not found or relocated")
+        
+        state_changes = {}
+        skill = approved_skill.skill_name
+        
+        if skill == "buy_insurance":
+            agent.has_insurance = True
+            state_changes["has_insurance"] = True
+        elif skill == "elevate_house":
+            if not agent.elevated:
+                agent.elevated = True
+                state_changes["elevated"] = True
+            agent.has_insurance = False
+            state_changes["has_insurance"] = False
+        elif skill == "relocate":
+            if not agent.relocated:
+                agent.relocated = True
+                state_changes["relocated"] = True
+        elif skill == "do_nothing":
+            agent.has_insurance = False
+            state_changes["has_insurance"] = False
+        
+        return ExecutionResult(success=True, state_changes=state_changes)
+    
+    def get_community_action_rate(self) -> float:
+        total = len(self.agents)
+        actions = sum(1 for a in self.agents.values() if a.elevated or a.relocated)
+        return actions / total if total > 0 else 0
 
 
 # =============================================================================
-# STEP 3: BUILD YOUR CONTEXT (Prompt)
+# CONTEXT BUILDER (Read-only observation)
 # =============================================================================
 
-def build_context(agent: Agent, env: Environment) -> str:
-    """Build the LLM prompt from agent and environment state."""
+class FloodContextBuilder:
+    """Builds bounded context for LLM - READ ONLY."""
     
-    # Agent state description
-    if agent.elevated:
-        elevation_status = "Your house is already elevated, providing good protection."
-    else:
-        elevation_status = "You have not elevated your home."
+    def __init__(self, simulation: FloodSimulation):
+        self.simulation = simulation
     
-    insurance_status = "have" if agent.has_insurance else "do not have"
+    def build(self, agent_id: str) -> Dict[str, Any]:
+        """Build read-only context for agent."""
+        agent = self.simulation.agents.get(agent_id)
+        if not agent:
+            return {}
+        
+        return {
+            "agent_id": agent_id,
+            "elevated": agent.elevated,
+            "has_insurance": agent.has_insurance,
+            "trust_in_insurance": agent.trust_in_insurance,
+            "trust_in_neighbors": agent.trust_in_neighbors,
+            "memory": agent.memory.copy(),
+            "flood_event": self.simulation.environment.flood_event,
+            "year": self.simulation.environment.year
+        }
     
-    # Memory
-    memory_text = "\n".join(f"- {m}" for m in agent.memory) if agent.memory else "- No past events recalled."
-    
-    # Available skills
-    available = get_available_skills(agent)
-    skills_text = "\n".join(f"- {k}: {v}" for k, v in available.items())
-    valid_choices = ", ".join(available.keys())
-    
-    # Flood status
-    flood_status = "A flood occurred this year, causing significant damage." if env.flood_event else "No flood occurred this year."
-    
-    return f"""You are a homeowner in a city, with a strong attachment to your community. {elevation_status}
-
+    def format_prompt(self, context: Dict[str, Any]) -> str:
+        """Format context into LLM prompt with skill-based options."""
+        elevation_status = (
+            "Your house is already elevated, which provides very good protection."
+            if context.get("elevated") else 
+            "You have not elevated your home."
+        )
+        
+        insurance_status = "have" if context.get("has_insurance") else "do not have"
+        
+        trust_ins = context.get("trust_in_insurance", 0.3)
+        trust_neighbors = context.get("trust_in_neighbors", 0.4)
+        
+        trust_ins_text = self._verbalize_trust(trust_ins, "insurance")
+        trust_neighbors_text = self._verbalize_trust(trust_neighbors, "neighbors")
+        
+        memory = "\n".join(f"- {m}" for m in context.get("memory", [])) or "No past events recalled."
+        
+        if context.get("elevated"):
+            options = """1. Buy flood insurance (Lower cost, provides partial financial protection but does not reduce physical damage.)
+2. Relocate (Requires leaving your neighborhood but eliminates flood risk permanently.)
+3. Do nothing (Require no financial investment or effort this year, but it might leave you exposed to future flood damage.)"""
+            valid_choices = "1, 2, or 3"
+        else:
+            options = """1. Buy flood insurance (Lower cost, provides partial financial protection but does not reduce physical damage.)
+2. Elevate your house (High upfront cost but can prevent most physical damage.)
+3. Relocate (Requires leaving your neighborhood but eliminates flood risk permanently.)
+4. Do nothing (Require no financial investment or effort this year, but it might leave you exposed to future flood damage.)"""
+            valid_choices = "1, 2, 3, or 4"
+        
+        flood_status = (
+            "A flood occurred this year."
+            if context.get("flood_event") else 
+            "No flood occurred this year."
+        )
+        
+        return f"""You are a homeowner in a city, with a strong attachment to your community. {elevation_status}
 Your memory includes:
-{memory_text}
+{memory}
 
 You currently {insurance_status} flood insurance.
+You {trust_ins_text} the insurance company. You {trust_neighbors_text} your neighbors' judgment.
 
-Using Protection Motivation Theory, evaluate your situation and choose an action.
+Using the Protection Motivation Theory, evaluate your current situation by considering the following factors:
+- Perceived Severity: How serious the consequences of flooding feel to you.
+- Perceived Vulnerability: How likely you think you are to be affected.
+- Response Efficacy: How effective you believe each action is.
+- Self-Efficacy: Your confidence in your ability to take that action.
+- Response Cost: The financial and emotional cost of the action.
+- Maladaptive Rewards: The benefit of doing nothing immediately.
 
-Available skills (choose one):
-{skills_text}
-
+Now, choose one of the following actions:
+{options}
+Note: If no flood occurred this year, since no immediate threat, most people would choose "Do Nothing."
 {flood_status}
 
-Respond with:
-Threat Appraisal: [Your assessment of threat]
-Coping Appraisal: [Your assessment of coping ability]
-Final Decision: [Choose {valid_choices}]"""
+Please respond using the exact format below. Do NOT include any markdown symbols:
+Threat Appraisal: [One sentence summary of how threatened you feel by any remaining flood risks.]
+Coping Appraisal: [One sentence summary of how well you think you can cope or act.]
+Final Decision: [Choose {valid_choices} only]"""
+    
+    def _verbalize_trust(self, trust_value: float, trust_type: str) -> str:
+        """Converts a float (0-1) into a natural language description (aligned with MCP)."""
+        if trust_type == "insurance":
+            if trust_value >= 0.8:
+                return "strongly trust"
+            elif trust_value >= 0.5:
+                return "moderately trust"
+            elif trust_value >= 0.2:
+                return "have slight doubts about"
+            else:
+                return "deeply distrust"
+        else:
+            if trust_value >= 0.8:
+                return "highly rely on"
+            elif trust_value >= 0.5:
+                return "generally trust"
+            elif trust_value >= 0.2:
+                return "are skeptical of"
+            else:
+                return "completely ignore"
 
 
 # =============================================================================
-# STEP 4: PARSE LLM OUTPUT
+# LLM INTERFACE
 # =============================================================================
 
-def parse_llm_output(raw_output: str, agent: Agent) -> Optional[str]:
-    """Parse LLM output to extract skill name."""
-    available = get_available_skills(agent)
-    
-    # Find "Final Decision:" line
-    for line in raw_output.split('\n'):
-        if "final decision" in line.lower():
-            decision_text = line.split(":", 1)[-1].strip().lower()
-            
-            # Try to find skill name
-            for skill_id in available.keys():
-                if skill_id in decision_text:
-                    return skill_id
-            
-            # Fallback: try digit parsing for legacy compatibility
-            for char in decision_text:
-                if char.isdigit():
-                    idx = int(char) - 1
-                    skill_list = list(available.keys())
-                    if 0 <= idx < len(skill_list):
-                        return skill_list[idx]
-    
-    return "do_nothing"  # Default fallback
+def create_llm_invoke(model: str):
+    """Create LLM invoke function."""
+    try:
+        from langchain_ollama import ChatOllama
+        llm = ChatOllama(model=model, temperature=0.3)
+        
+        def invoke(prompt: str) -> str:
+            response = llm.invoke(prompt)
+            return response.content
+        
+        return invoke
+    except ImportError:
+        print("Warning: langchain_ollama not installed. Using mock LLM.")
+        return lambda p: "Threat Appraisal: I feel moderately at risk.\nCoping Appraisal: I can manage.\nFinal Decision: 4 - Do Nothing"
 
 
 # =============================================================================
-# STEP 5: EXECUTE SKILLS (System-Only)
+# MAIN EXPERIMENT
 # =============================================================================
 
-def execute_skill(skill_name: str, agent: Agent, env: Environment) -> Dict[str, Any]:
-    """Execute an approved skill. Only the system calls this."""
-    state_changes = {}
-    
-    if skill_name == "buy_insurance":
-        agent.has_insurance = True
-        state_changes["has_insurance"] = True
-    
-    elif skill_name == "elevate_house":
-        if not agent.elevated:
-            agent.elevated = True
-            state_changes["elevated"] = True
-        agent.has_insurance = False  # Insurance not renewed
-    
-    elif skill_name == "relocate":
-        if not agent.relocated:
-            agent.relocated = True
-            state_changes["relocated"] = True
-    
-    elif skill_name == "do_nothing":
-        agent.has_insurance = False  # Insurance not renewed
-    
-    return state_changes
-
-
-# =============================================================================
-# STEP 6: RUN SIMULATION
-# =============================================================================
-
-def run_simulation(
-    model_name: str = "llama3.2:3b",
-    num_agents: int = 10,
-    num_years: int = 5,
-    flood_years: List[int] = None,
-    seed: int = 42
-):
-    """Run the skill-governed simulation."""
-    import random
-    random.seed(seed)
-    
-    if flood_years is None:
-        flood_years = [3]
-    
+def run_experiment(args):
+    """Run the skill-governed flood adaptation experiment."""
     print("=" * 60)
-    print("Skill-Governed Flood Adaptation Simulation")
+    print("Skill-Governed Flood Adaptation Example")
     print("=" * 60)
-    print(f"Model: {model_name}")
-    print(f"Agents: {num_agents}, Years: {num_years}")
-    print(f"Flood years: {flood_years}")
+    print(f"Model: {args.model}")
+    print(f"Agents: {args.num_agents}, Years: {args.num_years}")
     print("=" * 60)
     
-    # Initialize
-    llm = ChatOllama(model=model_name, temperature=0.7)
-    agents = [Agent(id=f"agent_{i}") for i in range(num_agents)]
-    env = Environment()
+    sim = FloodSimulation(num_agents=args.num_agents, seed=args.seed)
+    context_builder = FloodContextBuilder(sim)
+    skill_registry = create_flood_adaptation_registry()
+    model_adapter = get_adapter(args.model)
+    validators = create_default_validators()
     
-    results = []
+    output_dir = Path(args.output_dir) / args.model.replace(":", "_")
+    output_dir.mkdir(parents=True, exist_ok=True)
     
-    for year in range(1, num_years + 1):
-        env.year = year
-        env.flood_event = year in flood_years
+    # Use Framework AuditWriter
+    audit_config = AuditConfig(
+        output_dir=str(output_dir),
+        log_level="full",
+        max_entries_per_file=10000
+    )
+    audit_writer = AuditWriter(audit_config)
+    
+    broker = SkillBrokerEngine(
+        skill_registry=skill_registry,
+        model_adapter=model_adapter,
+        validators=validators,
+        simulation_engine=sim,
+        context_builder=context_builder,
+        audit_writer=audit_writer,
+        max_retries=2
+    )
+    
+    llm_invoke = create_llm_invoke(args.model)
+    
+    run_id = f"skill_example_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    step_counter = 0
+    logs = []
+    
+    for year in range(1, args.num_years + 1):
+        env = sim.advance_year()
+        sim.grant_available = random.random() < GRANT_PROBABILITY
         
         print(f"\n--- Year {year} ---")
         if env.flood_event:
             print("🌊 FLOOD EVENT!")
         
-        active_agents = [a for a in agents if a.is_active]
+        active_agents = [a for a in sim.agents.values() if a.is_active]
+        total_elevated = sum(1 for a in active_agents if a.elevated)
+        total_relocated = NUM_AGENTS - len(active_agents)
         print(f"Active agents: {len(active_agents)}")
         
+        # Memory Update (MCP Logic)
         for agent in active_agents:
-            # Build context
-            prompt = build_context(agent, env)
+            if env.flood_event and not agent.elevated:
+                if random.random() < agent.flood_threshold:
+                    agent.memory.append(f"Year {year}: Got flooded with $10,000 damage on my house.")
+                else:
+                    agent.memory.append(f"Year {year}: A flood occurred, but my house was spared damage.")
+            elif env.flood_event and agent.elevated:
+                if random.random() < agent.flood_threshold:
+                    agent.memory.append(f"Year {year}: Despite elevation, the flood was severe enough to cause damage.")
+                else:
+                    agent.memory.append(f"Year {year}: A flood occurred, but my house was protected by its elevation.")
+            elif not env.flood_event:
+                agent.memory.append(f"Year {year}: No flood occurred this year.")
             
-            # Get LLM decision
-            response = llm.invoke(prompt)
-            raw_output = response.content
+            if sim.grant_available:
+                agent.memory.append(f"Year {year}: Elevation grants are available.")
             
-            # Parse to skill
-            skill_name = parse_llm_output(raw_output, agent)
+            num_neighbors = NUM_AGENTS - 1
+            if num_neighbors > 0:
+                elevated_pct = round(((total_elevated - (1 if agent.elevated else 0)) / num_neighbors) * 100)
+                agent.memory.append(f"Year {year}: I observe {elevated_pct}% of my neighbors have elevated homes.")
+                relocated_pct = round((total_relocated / num_neighbors) * 100)
+                agent.memory.append(f"Year {year}: I observe {relocated_pct}% of my neighbors have relocated.")
             
-            # Execute
-            state_changes = execute_skill(skill_name, agent, env)
+            if random.random() < RANDOM_MEMORY_RECALL_CHANCE:
+                agent.memory.append(f"Suddenly recalled: '{random.choice(PAST_EVENTS)}'.")
             
-            # Update memory
-            if env.flood_event:
-                agent.memory.append(f"Year {year}: A flood occurred.")
-            agent.memory.append(f"Year {year}: Chose {skill_name}")
-            agent.memory = agent.memory[-5:]  # Keep last 5
+            agent.memory = agent.memory[-MEMORY_WINDOW:]
+        
+        # Process Decisions
+        for agent in active_agents:
+            step_counter += 1
+            result = broker.process_step(
+                agent_id=agent.id,
+                step_id=step_counter,
+                run_id=run_id,
+                seed=args.seed + step_counter,
+                llm_invoke=llm_invoke
+            )
             
-            results.append({
-                "year": year,
+            logs.append({
                 "agent_id": agent.id,
-                "skill": skill_name,
-                "state_changes": state_changes
+                "year": year,
+                "decision": agent.get_adaptation_state(),
+                "raw_skill": result.approved_skill.skill_name if result.approved_skill else None,
+                "outcome": result.outcome.value,
+                "elevated": agent.elevated,
+                "has_insurance": agent.has_insurance,
+                "relocated": agent.relocated
             })
+        
+        import pandas as pd
+        pd.DataFrame(logs).to_csv(output_dir / "simulation_log.csv", index=False)
+        print(f"[Year {year}] Log saved with {len(logs)} entries")
+    
+    summary = audit_writer.finalize()
+    broker_stats = broker.get_stats()
     
     print("\n" + "=" * 60)
-    print("SIMULATION COMPLETE")
+    print("EXPERIMENT COMPLETE")
     print("=" * 60)
+    print(f"Total decisions: {broker_stats['total']}")
+    print(f"Approval rate: {broker_stats['approval_rate']}")
+    print(f"Results saved to: {output_dir}")
     
-    # Summary
-    skill_counts = {}
-    for r in results:
-        skill = r["skill"]
-        skill_counts[skill] = skill_counts.get(skill, 0) + 1
-    
-    print("\nSkill Distribution:")
-    for skill, count in sorted(skill_counts.items(), key=lambda x: -x[1]):
-        pct = 100 * count / len(results)
-        print(f"  {skill}: {count} ({pct:.1f}%)")
-    
-    return results
+    return broker_stats
 
-
-# =============================================================================
-# MAIN
-# =============================================================================
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Skill-Governed Flood Adaptation")
-    parser.add_argument("--model", default="llama3.2:3b", help="LLM model name")
-    parser.add_argument("--num-agents", type=int, default=10, help="Number of agents")
-    parser.add_argument("--num-years", type=int, default=5, help="Number of years")
-    parser.add_argument("--seed", type=int, default=42, help="Random seed")
-    args = parser.parse_args()
+    parser.add_argument("--model", default="llama3.2:3b", help="LLM model (e.g. llama3.2:3b)")
+    parser.add_argument("--num-agents", type=int, default=10)
+    parser.add_argument("--num-years", type=int, default=5)
+    parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--output-dir", default="results")
     
-    run_simulation(
-        model_name=args.model,
-        num_agents=args.num_agents,
-        num_years=args.num_years,
-        seed=args.seed
-    )
+    args = parser.parse_args()
+    run_experiment(args)
