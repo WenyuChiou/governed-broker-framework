@@ -68,6 +68,47 @@ class SkillRegistry:
         if skill_id in self.skills:
             self._default_skill = skill_id
     
+    @classmethod
+    def from_domain_config(cls, loader: "DomainConfigLoader", agent_state: str = "non_elevated") -> "SkillRegistry":
+        """
+        Create a SkillRegistry from a DomainConfigLoader.
+        
+        This enables dynamic loading of skills from domain YAML configuration,
+        improving extensibility for new domains.
+        
+        Args:
+            loader: DomainConfigLoader instance
+            agent_state: Agent state for skill selection ("non_elevated" or "elevated")
+        
+        Returns:
+            SkillRegistry populated with skills from the domain config
+        
+        Example:
+            loader = DomainConfigLoader.from_file("config/domains/flood_adaptation.yaml")
+            registry = SkillRegistry.from_domain_config(loader)
+        """
+        from skill_types import SkillDefinition
+        
+        registry = cls()
+        
+        for skill in loader.get_skills(agent_state):
+            # Convert loader's SkillDefinition to registry's SkillDefinition
+            registry.register(SkillDefinition(
+                skill_id=skill.skill_id,
+                description=skill.description,
+                eligible_agent_types=skill.eligible_agent_types,
+                preconditions=skill.constraints,  # Map constraints to preconditions
+                institutional_constraints={"once_only": "elevated" in skill.effects or "relocated" in skill.effects},
+                allowed_state_changes=list(skill.effects.keys()),
+                implementation_mapping=f"sim.{skill.skill_id}"
+            ))
+        
+        # Set default skill (usually do_nothing)
+        if "do_nothing" in registry.skills:
+            registry.set_default_skill("do_nothing")
+        
+        return registry
+
     def check_eligibility(self, skill_id: str, agent_type: str) -> ValidationResult:
         """Check if an agent type is eligible to use a skill."""
         skill = self.get(skill_id)
