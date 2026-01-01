@@ -153,6 +153,32 @@ class DomainConfigLoader:
         """Get list of enabled validator names."""
         return [v.name for v in self.get_validators()]
     
+    def get_validator_instances(self, skip_missing: bool = True) -> List["SkillValidator"]:
+        """
+        Get instantiated validator objects.
+        
+        Dynamically loads and instantiates validators based on domain config.
+        
+        Args:
+            skip_missing: If True, skip unknown validators. If False, raise KeyError.
+            
+        Returns:
+            List of SkillValidator instances
+            
+        Example:
+            loader = DomainConfigLoader.from_file("config/domains/flood_adaptation.yaml")
+            validators = loader.get_validator_instances()
+            
+            for v in validators:
+                result = v.validate(proposal, context, registry)
+        """
+        from validators.factory import create_validators_from_config
+        return create_validators_from_config(
+            self.get_validator_names(),
+            skip_missing=skip_missing
+        )
+
+    
     # =========================================================================
     # MEMORY RULES
     # =========================================================================
