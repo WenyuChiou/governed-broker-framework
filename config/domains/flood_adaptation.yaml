@@ -5,8 +5,41 @@ domain_name: "flood_adaptation"
 description: "PMT-based flood adaptation ABM with LLM agents"
 
 # =============================================================================
+# PROMPT TEMPLATE (PMT-based decision prompt)
+# =============================================================================
+prompt_template: |
+  You are a resident in a flood-prone area making decisions about flood adaptation.
+  
+  Your current situation:
+  - Elevation status: {elevation_status_text}
+  - Insurance status: You {insurance_status_text} flood insurance
+  - Flood status: {flood_status}
+  
+  Your recent memory:
+  {memory}
+  
+  Based on Protection Motivation Theory (PMT), please consider:
+  
+  **Threat Appraisal**: How worried are you about future flood damage?
+  Consider the likelihood and potential severity of floods in your area.
+  
+  **Coping Appraisal**: How do you feel about your ability to take protective action?
+  Consider the costs, effectiveness, and feasibility of each option.
+  
+  Your available options:
+  {options_text}
+  
+  Please respond in this format:
+  Threat Appraisal: [Your assessment of the flood threat]
+  Coping Appraisal: [Your assessment of your ability to cope]
+  Final Decision: [Choose {valid_choices_text}]
+  
+  Note: If you feel the threat is low or costs are too high, choosing "Do nothing" is acceptable.
+
+# =============================================================================
 # AGENT STATE
 # =============================================================================
+
 state_schema:
   agent:
     # 核心狀態
