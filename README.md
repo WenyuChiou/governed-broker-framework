@@ -12,36 +12,49 @@
 
 ## English
 
-### ✨ v0.2 Skill-Governed Architecture
+### ✨ v0.3 Multi-LLM Extensibility
 
-| v0.1 Action-Based | v0.2 Skill-Governed |
-|-------------------|---------------------|
-| `action_code: "1"` | `skill_name: "buy_insurance"` |
-| Format + PMT validation | 6-stage validation pipeline |
-| Single LLM parser | Multi-LLM adapters |
+| v0.2 Skill-Governed | v0.3 Extensible |
+|---------------------|-----------------|
+| Single LLM adapter | Multi-LLM Provider Registry |
+| Hardcoded validators | Dynamic validator loading |
+| Sync only | Async + Rate limiting |
 
-👉 See [`docs/skill_architecture.md`](docs/skill_architecture.md) for details.
+👉 See [`docs/skill_architecture.md`](docs/skill_architecture.md) for architecture details.
 
 ### Quick Start
 
+#### Single LLM (Simple)
 ```bash
 pip install -r requirements.txt
-cd examples/flood_adaptation
-python run_skill_governed.py --model llama3.2:3b --num-agents 100 --num-years 10
+cd examples/skill_governed_flood
+python run_experiment.py --model llama3.2:3b --num-agents 100 --num-years 10
 ```
 
-### Architecture
+#### Multi-LLM (Advanced)
+```python
+from providers import OllamaProvider, OpenAIProvider
+from interfaces import LLMProviderRegistry
 
-![Skill Architecture](docs/skill_architecture_diagram.png)
+# Register multiple providers
+registry = LLMProviderRegistry()
+registry.register("local", OllamaProvider(model="llama3.2:3b"))
+registry.register("cloud", OpenAIProvider(api_key="..."))
+
+# Use different LLMs for different tasks
+local_response = registry.get("local").invoke(prompt)
+cloud_response = registry.get("cloud").invoke(prompt)
+```
 
 ### Key Components
 
 | Component | Purpose |
 |-----------|---------|
 | `SkillBrokerEngine` | Main orchestrator |
-| `SkillRegistry` | Institutional rules |
-| `ModelAdapter` | Multi-LLM support |
-| `SkillValidators` | 6-stage validation |
+| `LLMProviderRegistry` | Multi-LLM management |
+| `DomainConfigLoader` | YAML-driven config |
+| `ValidatorFactory` | Dynamic validator loading |
+| `RateLimiter` | API rate control |
 
 ### Validation Pipeline
 
@@ -58,38 +71,52 @@ MIT
 
 ---
 
+
 ## 中文
 
-### ✨ v0.2 技能治理架構
+### ✨ v0.3 多 LLM 擴充性
 
-| v0.1 動作導向 | v0.2 技能治理 |
-|---------------|---------------|
-| `action_code: "1"` | `skill_name: "buy_insurance"` |
-| 格式 + PMT 驗證 | 6 階段驗證管線 |
-| 單一 LLM 解析器 | 多 LLM 適配器 |
+| v0.2 技能治理 | v0.3 可擴充 |
+|---------------|-------------|
+| 單一 LLM 適配器 | Multi-LLM Provider Registry |
+| 固定驗證器 | 動態驗證器載入 |
+| 同步處理 | 非同步 + 速率限制 |
 
 👉 詳見 [`docs/skill_architecture.md`](docs/skill_architecture.md)
 
 ### 快速開始
 
+#### 單一 LLM（簡單）
 ```bash
 pip install -r requirements.txt
-cd examples/flood_adaptation
-python run_skill_governed.py --model llama3.2:3b --num-agents 100 --num-years 10
+cd examples/skill_governed_flood
+python run_experiment.py --model llama3.2:3b --num-agents 100 --num-years 10
 ```
 
-### 架構
+#### 多 LLM（進階）
+```python
+from providers import OllamaProvider, OpenAIProvider
+from interfaces import LLMProviderRegistry
 
-![技能架構圖](docs/skill_architecture_diagram.png)
+# 註冊多個 LLM 提供者
+registry = LLMProviderRegistry()
+registry.register("local", OllamaProvider(model="llama3.2:3b"))
+registry.register("cloud", OpenAIProvider(api_key="..."))
+
+# 根據需求使用不同 LLM
+local_response = registry.get("local").invoke(prompt)
+cloud_response = registry.get("cloud").invoke(prompt)
+```
 
 ### 核心元件
 
 | 元件 | 用途 |
 |------|------|
 | `SkillBrokerEngine` | 主協調器 |
-| `SkillRegistry` | 制度規則 |
-| `ModelAdapter` | 多 LLM 支援 |
-| `SkillValidators` | 6 階段驗證 |
+| `LLMProviderRegistry` | 多 LLM 管理 |
+| `DomainConfigLoader` | YAML 驅動配置 |
+| `ValidatorFactory` | 動態驗證器載入 |
+| `RateLimiter` | API 速率控制 |
 
 ### 驗證管線
 
@@ -103,3 +130,4 @@ python run_skill_governed.py --model llama3.2:3b --num-agents 100 --num-years 10
 ### 授權
 
 MIT
+
