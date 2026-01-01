@@ -46,6 +46,12 @@ local_response = registry.get("local").invoke(prompt)
 cloud_response = registry.get("cloud").invoke(prompt)
 ```
 
+### Architecture
+
+| Single LLM Mode | Multi-LLM Mode |
+|-----------------|----------------|
+| ![Single LLM](docs/single_llm_architecture.png) | ![Multi LLM](docs/multi_llm_architecture.png) |
+
 ### Key Components
 
 | Component | Purpose |
