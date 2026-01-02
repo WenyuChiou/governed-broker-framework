@@ -189,8 +189,40 @@ python run_experiment.py --model llama3.2:3b --num-agents 100 --num-years 10
 | 元件 | 檔案 | 說明 |
 |------|------|------|
 | `BaseValidator` | `base.py` | 抽象驗證器介面 |
-| `SkillValidators` | `skill_validators.py` | 6 個驗證器: Admissibility, Feasibility, Constraints, Safety, PMT, Uncertainty |
+| `SkillValidators` | `skill_validators.py` | 可配置驗證器 (見下方) |
 | `ValidatorFactory` | `factory.py` | 從 YAML 動態載入驗證器 |
+
+#### 驗證管線細節
+
+每個 SkillProposal 經過**可配置的驗證管線**：
+
+```
+SkillProposal → [驗證器 1] → [驗證器 2] → ... → [驗證器 N] → 執行
+                    ↓               ↓                    ↓
+               若失敗 → 拒絕並說明原因，退回到 "do_nothing"
+```
+
+| 驗證器 | 檢查內容 | 範例 |
+|--------|----------|------|
+| **Admissibility** | 技能是否已註冊？代理人是否有資格？ | 住戶不能使用 "set_policy"（僅限政府） |
+| **Feasibility** | 前置條件是否滿足？ | 若已加高，不能再使用 "elevate_house" |
+| **Constraints** | 年度限制？一次性規則？ | "elevate_house" 每個代理人只能使用一次 |
+| **Effect Safety** | 狀態變更是否有效？ | 不能設定負數保險費用 |
+| **PMT Consistency** | 推理是否與決策一致？ | 若威脅評估為「低風險」，為何購買保險？ |
+| **Uncertainty** | 回應是否有信心？ | 若 LLM 說「我不確定」則拒絕 |
+
+> **注意**：驗證器可**透過 YAML 配置**。您可針對不同情境啟用/停用驗證器。
+
+```yaml
+# config/validators.yaml
+validators:
+  - name: admissibility
+    enabled: true
+  - name: feasibility
+    enabled: true
+  - name: pmt_consistency
+    enabled: false  # 非 PMT 情境時停用
+```
 
 ---
 

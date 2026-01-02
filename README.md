@@ -189,9 +189,40 @@ python run_experiment.py --model llama3.2:3b --num-agents 100 --num-years 10
 | Component | File | Description |
 |-----------|------|-------------|
 | `BaseValidator` | `base.py` | Abstract validator interface |
-| `SkillValidators` | `skill_validators.py` | 6 validators: Admissibility, Feasibility, Constraints, Safety, PMT, Uncertainty |
+| `SkillValidators` | `skill_validators.py` | Configurable validators (see below) |
 | `ValidatorFactory` | `factory.py` | Dynamic validator loading from YAML |
 
+#### Validation Pipeline Details
+
+Each SkillProposal passes through a **configurable validation pipeline**:
+
+```
+SkillProposal → [Validator 1] → [Validator 2] → ... → [Validator N] → Execution
+                    ↓               ↓                    ↓
+               If FAIL → Reject with reason, fallback to "do_nothing"
+```
+
+| Validator | What it Checks | Example |
+|-----------|----------------|---------|
+| **Admissibility** | Is the skill registered? Is the agent eligible? | Homeowner cannot use "set_policy" (gov-only skill) |
+| **Feasibility** | Are preconditions met? | Cannot "elevate_house" if already elevated |
+| **Constraints** | Annual limits? Once-only rules? | "elevate_house" can only be used once per agent |
+| **Effect Safety** | Are state changes valid? | Cannot set negative insurance cost |
+| **PMT Consistency** | Does reasoning match decision? | If threat appraisal says "low risk", why buy insurance? |
+| **Uncertainty** | Is the response confident? | Rejects if LLM says "I'm not sure" |
+
+> **Note**: Validators are **configurable via YAML**. You can enable/disable validators per use case.
+
+```yaml
+# config/validators.yaml
+validators:
+  - name: admissibility
+    enabled: true
+  - name: feasibility
+    enabled: true
+  - name: pmt_consistency
+    enabled: false  # Disabled for non-PMT scenarios
+```
 
 ---
 
