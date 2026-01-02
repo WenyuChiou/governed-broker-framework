@@ -81,6 +81,80 @@ if skill in ["elevate_house", "relocate"]:
 
 ---
 
+## Model-Specific Analysis
+
+### Llama 3.2 (3B) - Panic-Prone Model
+**Problem Without Framework:**
+- 95% relocation rate = "panic-driven" decisions
+- LLM generates: "I'm scared, I'll relocate" even when unaffordable
+
+**With Skill-Governed:**
+- Financial consistency check catches "too expensive + relocate" contradictions
+- Retry mechanism allows LLM to reconsider → chooses Elevation instead
+- Result: Rational 72% Elevation, only 6% Relocation
+
+### Gemma 3 (4B) - Conservative Model
+**Baseline Behavior:**
+- Already low relocation (6%) without governance
+- Tends toward Elevation naturally
+
+**With Skill-Governed:**
+- Reinforces conservative behavior
+- Highest Elevation rate (80%)
+- Minimal improvement needed, framework validates existing rationality
+
+### GPT-OSS (20B) - Balanced Model
+**Baseline Behavior:**
+- Near-zero relocation even without governance
+- Most balanced Insurance + Elevation combination
+
+**With Skill-Governed:**
+- Best combined adaptation: 88% Elevation + 47% Insurance
+- Lowest "Do Nothing" rate (5%) = most proactive
+- Framework confirms already-rational behavior
+
+### DeepSeek R1 (8B) - Moderate Improvement
+**Problem Without Framework:**
+- 14% → 39% relocation jump with Old MCP
+- Old MCP actually worsened behavior
+
+**With Skill-Governed:**
+- Financial check prevents 37pp of irrational relocations
+- Good Insurance adoption (41%)
+- Framework essential for this model
+
+---
+
+## Key Improvement Points
+
+### 1. Financial Consistency Check (Biggest Impact)
+```
+❌ OLD: "Too expensive but I'll relocate" → PASS
+✅ NEW: Same response → REJECT → Retry → "I'll elevate instead"
+```
+**Impact:** Llama relocation ↓ 93pp, DeepSeek ↓ 37pp
+
+### 2. Once-Only Constraint Enforcement
+```
+❌ OLD: Agent can say "relocate" every year
+✅ NEW: Registry enforces permanent/once-only rules
+```
+**Impact:** Prevents repeated expensive decisions
+
+### 3. Structured Skill Proposal
+```
+❌ OLD: Free-form LLM output, parsing errors
+✅ NEW: JSON structure { skill, reasoning } - always parseable
+```
+**Impact:** 99.8% approval rate after retry
+
+### 4. Audit Trail for Reproducibility
+```
+❌ OLD: Only final decision logged
+✅ NEW: Full reasoning + validation result logged
+```
+**Impact:** Complete reproducibility for research
+
 ## Performance Analysis
 
 ### Why Skill-Governed Works Better
