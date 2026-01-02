@@ -38,7 +38,84 @@ The Governed Broker Framework provides a **skill-governed architecture** for bui
 | **Inconsistent Decisions** | Contradictory or illogical choices | Multi-stage validators check PMT consistency | `Validators` |
 | **No Traceability** | Cannot reproduce or audit decisions | Complete audit trail with timestamps | `AuditWriter` |
 | **Uncontrolled State Mutation** | Direct, unvalidated state changes | State Manager controls all state updates | `StateManager` |
-| **Social Blindness** | No awareness of neighbor behaviors | Social module observes neighbor actions | `NeighborProvider` |
+
+---
+
+## Skill Proposal Format
+
+The framework requires LLM to output decisions in a **structured Skill Proposal format**:
+
+```json
+{
+  "skill": "buy_insurance",
+  "parameters": {"duration": 1},
+  "reasoning": "High flood risk this year..."
+}
+```
+
+### Why Skill Proposal?
+
+| Aspect | Free-form LLM Output | Skill Proposal |
+|--------|---------------------|----------------|
+| **Parse-ability** | Requires complex NLP | Structured JSON, easy to parse |
+| **Validation** | Cannot validate | Skill Registry checks eligibility |
+| **Traceability** | Hard to log | Complete audit trail |
+| **State Safety** | Direct mutation | Validated before execution |
+| **Reproducibility** | Non-deterministic | Deterministic skill execution |
+
+### How does LLM know available skills?
+
+The **Context Builder** injects available skills into the prompt:
+
+```
+You are an agent. Available skills:
+- buy_insurance: Purchase flood insurance (duration: int)
+- elevate_house: Elevate your house (once only)
+- relocate: Move to a safer area (permanent)
+- do_nothing: Take no action this year
+
+Respond with JSON: {"skill": "...", "parameters": {...}, "reasoning": "..."}
+```
+
+This ensures LLM only proposes registered skills, which are then validated by the Skill Broker.
+
+### Core Execution Flow
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│  1. CONTEXT BUILDING                                                │
+│     StateManager → ContextBuilder                                   │
+│     • Read agent's individual state (memory, has_insurance, etc.)   │
+│     • Read shared state (flood_occurred, year)                      │
+│     • Inject available skills into prompt                           │
+└───────────────────────────┬─────────────────────────────────────────┘
+                            ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│  2. LLM DECISION                                                    │
+│     ContextBuilder → LLM                                            │
+│     • LLM receives bounded context + skill list                     │
+│     • LLM outputs SkillProposal JSON                                │
+│     • {"skill": "buy_insurance", "parameters": {...}, ...}          │
+└───────────────────────────┬─────────────────────────────────────────┘
+                            ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│  3. VALIDATION                                                      │
+│     ModelAdapter → SkillBrokerEngine → Validators                   │
+│     • Parse LLM output into structured SkillProposal                │
+│     • Admissibility: Is skill registered? Agent eligible?           │
+│     • Feasibility: Preconditions met? (not already elevated)        │
+│     • Constraints: Annual limits? Once-only rules?                  │
+│     • If INVALID → Fallback to "do_nothing"                         │
+└───────────────────────────┬─────────────────────────────────────────┘
+                            ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│  4. EXECUTION & STATE UPDATE                                        │
+│     SkillBrokerEngine → Executor → StateManager                     │
+│     • Execute validated skill effects                               │
+│     • Update agent's individual state                               │
+│     • Log to AuditWriter for traceability                           │
+└─────────────────────────────────────────────────────────────────────┘
+```
 
 ---
 
