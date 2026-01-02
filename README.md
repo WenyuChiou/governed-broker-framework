@@ -56,18 +56,50 @@ python run_experiment.py --model llama3.2:3b --num-agents 100 --num-years 10
 
 ---
 
+## Framework Evolution
+
+![Framework Evolution](docs/framework_evolution.png)
+
+**No MCP → MCP v1 → Skill-Governed (v2)**: Progressive governance layers added for reliable LLM-ABM integration.
+
+---
+
 ## Core Components
 
-| Component | Description |
-|-----------|-------------|
-| `SkillBrokerEngine` | Main orchestrator for skill validation and execution |
-| `StateManager` | Multi-level state: Individual / Shared / Institutional |
-| `SkillRegistry` | Skill definitions with agent type eligibility rules |
-| `ContextBuilder` | Build bounded context with neighbor observation |
-| `ModelAdapter` | Parse LLM output into SkillProposal |
-| `ValidatorFactory` | Dynamic validator loading from YAML config |
-| `LLMProvider` | LLM interface (Ollama default, extensible) |
-| `AuditWriter` | Complete traceability for reproducibility |
+### Broker Layer (`broker/`)
+
+| Component | File | Description |
+|-----------|------|-------------|
+| `SkillBrokerEngine` | `skill_broker_engine.py` | Main orchestrator: validates skills, manages execution pipeline |
+| `SkillRegistry` | `skill_registry.py` | Skill definitions with agent type eligibility and parameter schemas |
+| `ContextBuilder` | `context_builder.py` | Builds bounded context from state, includes neighbor observation |
+| `ModelAdapter` | `model_adapter.py` | Parses LLM output into structured SkillProposal |
+| `AuditWriter` | `audit_writer.py` | Complete audit trail for reproducibility |
+
+### State Layer (`simulation/`)
+
+| Component | File | Description |
+|-----------|------|-------------|
+| `StateManager` | `state_manager.py` | Multi-level state: Individual / Social / Shared / Institutional |
+| `SimulationEngine` | `engine.py` | ABM simulation loop with skill execution |
+
+### Provider Layer (`providers/`)
+
+| Component | File | Description |
+|-----------|------|-------------|
+| `OllamaProvider` | `ollama.py` | Default LLM provider (local Ollama) |
+| `OpenAIProvider` | `openai_provider.py` | OpenAI API provider |
+| `ProviderFactory` | `factory.py` | Dynamic provider instantiation |
+| `RateLimiter` | `rate_limiter.py` | Rate limiting for API calls |
+
+### Validator Layer (`validators/`)
+
+| Component | File | Description |
+|-----------|------|-------------|
+| `BaseValidator` | `base.py` | Abstract validator interface |
+| `SkillValidators` | `skill_validators.py` | 6 validators: Admissibility, Feasibility, Constraints, Safety, PMT, Uncertainty |
+| `ValidatorFactory` | `factory.py` | Dynamic validator loading from YAML |
+
 
 ---
 

@@ -56,18 +56,49 @@ python run_experiment.py --model llama3.2:3b --num-agents 100 --num-years 10
 
 ---
 
+## 框架演進
+
+![框架演進](docs/framework_evolution.png)
+
+**No MCP → MCP v1 → Skill-Governed (v2)**: 漸進式增加治理層以實現可靠的 LLM-ABM 整合。
+
+---
+
 ## 核心元件
 
-| 元件 | 說明 |
-|------|------|
-| `SkillBrokerEngine` | 技能驗證和執行的主要協調器 |
-| `StateManager` | 多層狀態: Individual / Social / Shared / Institutional |
-| `SkillRegistry` | 技能定義及代理人類型資格規則 |
-| `ContextBuilder` | 建構包含鄰居觀察的有界上下文 |
-| `ModelAdapter` | 將 LLM 輸出解析為 SkillProposal |
-| `ValidatorFactory` | 從 YAML 設定動態載入驗證器 |
-| `LLMProvider` | LLM 介面 (預設 Ollama，可擴展) |
-| `AuditWriter` | 完整可追溯性以確保可重現性 |
+### Broker 層 (`broker/`)
+
+| 元件 | 檔案 | 說明 |
+|------|------|------|
+| `SkillBrokerEngine` | `skill_broker_engine.py` | 主要協調器：驗證技能、管理執行管線 |
+| `SkillRegistry` | `skill_registry.py` | 技能定義及代理人類型資格和參數結構 |
+| `ContextBuilder` | `context_builder.py` | 從狀態建構有界上下文，包含鄰居觀察 |
+| `ModelAdapter` | `model_adapter.py` | 將 LLM 輸出解析為結構化 SkillProposal |
+| `AuditWriter` | `audit_writer.py` | 完整審計軌跡以確保可重現性 |
+
+### State 層 (`simulation/`)
+
+| 元件 | 檔案 | 說明 |
+|------|------|------|
+| `StateManager` | `state_manager.py` | 多層狀態: Individual / Social / Shared / Institutional |
+| `SimulationEngine` | `engine.py` | ABM 模擬迴圈及技能執行 |
+
+### Provider 層 (`providers/`)
+
+| 元件 | 檔案 | 說明 |
+|------|------|------|
+| `OllamaProvider` | `ollama.py` | 預設 LLM 提供者 (本地 Ollama) |
+| `OpenAIProvider` | `openai_provider.py` | OpenAI API 提供者 |
+| `ProviderFactory` | `factory.py` | 動態提供者實例化 |
+| `RateLimiter` | `rate_limiter.py` | API 呼叫速率限制 |
+
+### Validator 層 (`validators/`)
+
+| 元件 | 檔案 | 說明 |
+|------|------|------|
+| `BaseValidator` | `base.py` | 抽象驗證器介面 |
+| `SkillValidators` | `skill_validators.py` | 6 個驗證器: Admissibility, Feasibility, Constraints, Safety, PMT, Uncertainty |
+| `ValidatorFactory` | `factory.py` | 從 YAML 動態載入驗證器 |
 
 ---
 
