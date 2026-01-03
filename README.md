@@ -168,17 +168,21 @@ See [examples/README.md](examples/README.md) for detailed version comparison.
 
 ---
 
-## Core Components
+## Core Components (V2 Skill-Governed Architecture) ✅
+
+> **Note**: The following components are for the **latest v2 Skill-Governed framework**. 
+> For legacy v1 MCP components, see `broker/legacy/`.
 
 ### Broker Layer (`broker/`)
 
-| Component | File | Description |
-|-----------|------|-------------|
-| `SkillBrokerEngine` | `skill_broker_engine.py` | Main orchestrator: validates skills, manages execution pipeline |
-| `SkillRegistry` | `skill_registry.py` | Skill definitions with agent type eligibility and parameter schemas |
-| `ContextBuilder` | `context_builder.py` | Builds bounded context from state, includes neighbor observation |
-| `ModelAdapter` | `model_adapter.py` | Parses LLM output into structured SkillProposal |
-| `AuditWriter` | `audit_writer.py` | Complete audit trail for reproducibility |
+| Component | File | Purpose |
+|-----------|------|---------|
+| **SkillBrokerEngine** | `skill_broker_engine.py` | 🎯 Main orchestrator: validates skills → executes via simulation |
+| **SkillRegistry** | `skill_registry.py` | 📋 Skill definitions with eligibility rules & parameters |
+| **SkillProposal** | `skill_types.py` | 📦 Structured LLM output format (JSON) |
+| **ModelAdapter** | `model_adapter.py` | 🔄 Parses raw LLM text → SkillProposal |
+| **ContextBuilder** | `context_builder.py` | 👁️ Builds bounded context for agents |
+| **AuditWriter** | `audit_writer.py` | 📊 Complete audit trail for reproducibility |
 
 ### State Layer (`simulation/`)
 
