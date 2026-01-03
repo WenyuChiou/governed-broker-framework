@@ -154,6 +154,17 @@ python run_experiment.py --model llama3.2:3b --num-agents 100 --num-years 10
 
 **No MCP → MCP v1 → Skill-Governed (v2)**: Progressive governance layers added for reliable LLM-ABM integration.
 
+### ⚠️ Framework Versions
+
+| Directory | Version | Experiment | Status |
+|-----------|---------|------------|--------|
+| `examples/skill_governed_flood/` | **Skill-Governed (v2)** | Exp 10 | ✅ Recommended |
+| `examples/flood_adaptation/` | MCP (v1) | Exp 9 | ⚠️ Legacy |
+
+> **Note**: Use `skill_governed_flood/` for all new experiments. The old MCP version is kept for reference only.
+
+See [examples/README.md](examples/README.md) for detailed version comparison.
+
 ---
 
 ## Core Components
