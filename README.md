@@ -338,6 +338,79 @@ agent_types:
 
 ---
 
+## Extensibility
+
+The framework is designed for extensibility to support:
+
+### 1. Disaster Models Integration
+
+Extend `SharedState` to include disaster model outputs:
+
+```python
+@dataclass
+class DisasterSharedState(SharedState):
+    # From disaster model
+    flood_probability: float = 0.0
+    flood_severity: float = 0.0
+    sea_level_rise: float = 0.0
+    
+    # From climate model
+    precipitation_forecast: float = 0.0
+    storm_surge_risk: float = 0.0
+```
+
+### 2. Survey Data for Agent Demographics
+
+Load real-world survey data as agent attributes:
+
+```python
+@dataclass
+class SurveyFloodAgent(IndividualState):
+    # Standard attributes
+    elevated: bool = False
+    has_insurance: bool = False
+    
+    # PMT attributes (from survey)
+    trust_in_insurance: float = 0.3
+    trust_in_neighbors: float = 0.4
+    
+    # Demographic attributes (from survey)
+    age: int = 40
+    income: str = "middle"           # low/middle/high
+    education: str = "bachelor"
+    household_size: int = 3
+    homeownership: str = "owner"     # owner/renter
+    years_in_community: int = 10
+```
+
+### 3. CSV Auto-Loading
+
+Place `agent_initial_profiles.csv` in framework root:
+
+```csv
+id,elevated,has_insurance,trust_in_insurance,age,income,education
+Agent_1,False,False,0.35,45,high,master
+Agent_2,False,True,0.52,32,middle,bachelor
+```
+
+The framework automatically loads survey data if CSV exists.
+
+### 4. Custom Context with Demographics
+
+```python
+class SurveyContextBuilder(ContextBuilder):
+    def build(self, agent_id: str) -> Dict:
+        return {
+            # Standard context...
+            "age": agent.age,
+            "income": agent.income,
+            "education": agent.education,
+            # Include in LLM prompt for personalized decisions
+        }
+```
+
+---
+
 ## Documentation
 
 - [Architecture Details](docs/skill_architecture.md)
