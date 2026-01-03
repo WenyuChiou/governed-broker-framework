@@ -31,6 +31,114 @@ skills:
 
 ---
 
+## State Architecture
+
+Agent state is organized in multiple levels:
+
+### Individual State (Per-Agent)
+
+```python
+@dataclass
+class FloodAgent:
+    # Core attributes
+    id: str
+    elevated: bool = False           # Physical adaptation
+    has_insurance: bool = False      # Financial protection
+    relocated: bool = False          # Permanent migration
+    
+    # Trust attributes (PMT-related)
+    trust_in_insurance: float = 0.3  # Affects coping appraisal
+    trust_in_neighbors: float = 0.4  # Social influence
+    
+    # Context attributes
+    memory: List[str] = []           # Recent experiences
+    flood_threshold: float = 0.5     # Vulnerability perception
+```
+
+### State Levels
+
+| Level | Examples | Access |
+|-------|----------|--------|
+| **Individual** | trust, elevated, has_insurance, memory | Agent-only |
+| **Shared** | flood_event, year, community_stats | All agents (read) |
+| **Institutional** | policy_mode, subsidy_rate | System-only |
+
+### Trust in Context
+
+Trust values are verbalized and included in LLM prompts:
+
+```python
+# trust_in_insurance: 0.3 → "have slight doubts about"
+# trust_in_neighbors: 0.7 → "generally trust"
+```
+
+---
+
+## Using Survey Data (Demographic Attributes)
+
+The framework supports loading agent profiles from CSV files with real-world survey data.
+
+### 1. Prepare CSV File
+
+Create `agent_initial_profiles.csv` in the framework root:
+
+```csv
+id,elevated,has_insurance,trust_in_insurance,trust_in_neighbors,flood_threshold,age,income,education
+Agent_1,False,False,0.35,0.45,0.5,45,high,master
+Agent_2,False,True,0.52,0.38,0.6,32,middle,bachelor
+Agent_3,True,False,0.28,0.62,0.4,58,low,high_school
+...
+```
+
+### 2. Extend FloodAgent (Optional)
+
+Add demographic fields to `FloodAgent` dataclass:
+
+```python
+@dataclass
+class FloodAgent:
+    # Existing fields...
+    
+    # Demographic attributes from survey
+    age: int = 40
+    income: str = "middle"           # low/middle/high
+    education: str = "bachelor"      # high_school/bachelor/master/phd
+    household_size: int = 3
+    years_in_community: int = 10
+    homeownership: str = "owner"     # owner/renter
+```
+
+### 3. Update ContextBuilder
+
+Include demographics in LLM prompt context:
+
+```python
+def build(self, agent_id: str) -> Dict[str, Any]:
+    return {
+        # Existing context...
+        "age": agent.age,
+        "income": agent.income,
+        "education": agent.education,
+        # Can be used in prompt template
+    }
+```
+
+### 4. Auto-Loading
+
+The framework automatically loads CSV if present:
+
+```python
+# In FloodSimulation.__init__()
+agent_file = base_dir / "agent_initial_profiles.csv"
+if agent_file.exists():
+    df = pd.read_csv(agent_file)
+    for _, row in df.iterrows():
+        self.agents[row['id']] = FloodAgent(
+            trust_in_insurance=float(row['trust_in_insurance']),
+            # Load any additional columns...
+        )
+```
+
 ## Active Validators
 
 This example uses the following validation pipeline:
@@ -185,7 +293,7 @@ if skill in ["elevate_house", "relocate"]:
 ## How to Run
 
 ```bash
-cd examples/skill_governed_flood
+cd examples/v2_skill_governed
 python run_experiment.py --model llama3.2:3b --num-agents 100 --num-years 10
 ```
 
