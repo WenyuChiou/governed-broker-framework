@@ -122,7 +122,70 @@
 
 ---
 
-## 4. TP × CP 交互作用 → Validator Rules
+## 4. 現有 PMTConsistencyValidator Rules 與文獻對應
+
+### 實際使用的 5 個驗證器 (v2_skill_governed)
+
+```python
+def create_default_validators():
+    return [
+        SkillAdmissibilityValidator(),    # 技術驗證
+        ContextFeasibilityValidator(),     # 技術驗證
+        InstitutionalConstraintValidator(), # 技術驗證
+        EffectSafetyValidator(),           # 技術驗證
+        PMTConsistencyValidator(),         # ← 需要 PMT 文獻支持
+    ]
+```
+
+### PMTConsistencyValidator Rules 與文獻對應
+
+| Rule # | Code Logic | 文獻支持 | 狀態 |
+|--------|------------|----------|------|
+| **Rule 1** | HIGH_THREAT + HIGH_EFFICACY + do_nothing = Error | Grothmann & Reusswig (2006) | ✅ |
+| **Rule 2** | LOW_THREAT + relocate = Error | Rogers (1983) PMT | ✅ |
+| **Rule 3** | Flood occurred + claims safe = Error | Germany/NZ/China flood experience studies | ✅ |
+| **Rule 4** | CANNOT_AFFORD + expensive = Error | Bamberg (2017) CP as predictor | ✅ |
+
+### Rule 詳細對應
+
+**Rule 1: High threat + High efficacy + Do Nothing**
+```python
+HIGH_THREAT_KEYWORDS = ["worried", "concerned", "scared", "at risk", "dangerous", "vulnerable", "threatened"]
+HIGH_EFFICACY_KEYWORDS = ["can protect", "effective", "would help", "prevent damage", "reduce risk"]
+```
+- **文獻**: Grothmann & Reusswig (2006) - HIGH TP + HIGH CP → Protection Motivation → Action
+- **狀態**: ✅ 已有文獻支持
+
+**Rule 2: Low threat + Relocate**
+```python
+LOW_THREAT_KEYWORDS = ["not worried", "safe", "no risk", "unlikely", "minimal"]
+```
+- **文獻**: Rogers (1983) PMT - Threat Appraisal 是採取極端行動的必要條件
+- **狀態**: ✅ 已有文獻支持
+
+**Rule 3: Flood occurred + Claims safe**
+```python
+if "flood occurred" in flood_status.lower():
+    if any(kw in threat for kw in ["feel safe", "not worried", "no concern"]):
+        errors.append(...)
+```
+- **文獻**: 
+  - Germany (Saxony): 2200+ 居民調查 - 經歷洪水者更可能視洪水為威脅 (preventionweb.net)
+  - NZ (Hutt Valley): 洪水經驗 → 風險感知上升 + 準備度提高 (REPEC)
+  - China case study: "flood experience was strongly related to risk perception" (NIH)
+- **狀態**: ✅ 已有文獻支持
+
+**Rule 4: Cannot afford + Expensive option**
+```python
+CANNOT_AFFORD_KEYWORDS = ["cannot afford", "too expensive", "not enough money", "high cost", "financial burden"]
+is_expensive = skill in ["elevate_house", "relocate"]
+```
+- **文獻**: Bamberg et al. (2017) - CP (r=0.30) 是行為預測因子
+- **狀態**: ✅ 已有文獻支持
+
+---
+
+## 5. TP × CP 交互作用 → Validator Rules
 
 ### 驗證規則理論基礎
 
