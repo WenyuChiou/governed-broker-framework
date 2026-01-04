@@ -492,7 +492,106 @@ Reason: [brief explanation]"""
 | Insurance | 調漲/調降/維持保費 | raise/lower/maintain_premium |
 | Government | 調高/調低/維持補助、MG優先 | increase/decrease/maintain_subsidy, set_mg_priority |
 
-### 2. Prompts (對齊現有 PMT)
+### 2. Decision Constructs (基於傳統 ABM)
+
+#### 傳統 ABM 公式 (ABM_Summary.pdf)
+
+```
+p(a),g = σ(w0 + w1*TP + w2*CP + w3*SP)
+```
+
+| Construct | 全名 | 定義 | 來源 |
+|-----------|------|------|------|
+| **TP** | Threat Perception | 威脅感知 (MG/NMG 各自) | 上年災損動態更新 |
+| **CP** | Coping Perception | 應對能力感知 (affordability) | 收入、成本負擔 |
+| **SP** | Stakeholder Perception | 利害關係人感知 | 政策、保險可用性 |
+| **SC** | Self-Confidence | 自信心/社會資本 | 問卷 |
+| **PA** | Previous Adaptation | 過去適應經驗 | 歷史記錄 |
+
+#### LLM-ABM Construct 對應
+
+| 傳統 ABM | LLM Prompt 對應 | Context 來源 |
+|----------|----------------|--------------|
+| **TP** (Threat) | Threat Appraisal 輸出 | memory, flood_event, prior_flood_experience |
+| **CP** (Coping) | Coping Appraisal 輸出 | income, housing_cost_ratio, is_MG, subsidy_rate |
+| **SP** (Stakeholder) | Context 資訊 | premium_rate, subsidy_rate, policy_mode |
+| **SC** (Self-Confidence) | trust_in_insurance, trust_in_neighbors | 問卷直接載入 |
+| **PA** (Previous Adaptation) | elevated, has_insurance, memory | 狀態 + 記憶 |
+
+#### Household Prompt Construct 整合
+
+```python
+def build_household_prompt_with_constructs(agent: HouseholdAgent, context: dict) -> str:
+    """整合 ABM constructs 到 prompt"""
+    
+    # === TP: Threat Perception ===
+    tp_context = f"""
+**Threat Perception (TP):**
+- Prior flood experience: {"Yes, you have experienced flooding before" if agent.prior_flood_experience else "No direct experience"}
+- Current year flood: {"A flood occurred this year" if context["flood_event"] else "No flood this year"}
+- Memories: {'; '.join(agent.memory[-3:]) if agent.memory else "No recent memories"}
+"""
+    
+    # === CP: Coping Perception ===
+    if agent.is_MG:
+        affordability = f"Limited income (${agent.income:,.0f}/year), housing costs {agent.housing_cost_ratio*100:.0f}% of income"
+        coping_ability = "You may struggle to afford major adaptations without assistance"
+    else:
+        affordability = f"Income ${agent.income:,.0f}/year, housing costs {agent.housing_cost_ratio*100:.0f}% of income"
+        coping_ability = "You can consider various adaptation options"
+    
+    cp_context = f"""
+**Coping Perception (CP):**
+- Financial situation: {affordability}
+- Coping ability: {coping_ability}
+- Already elevated: {"Yes (protected)" if agent.elevated else "No"}
+- Current insurance: {"Yes" if agent.has_insurance else "No"}
+"""
+    
+    # === SP: Stakeholder Perception ===
+    sp_context = f"""
+**Stakeholder Perception (SP):**
+- Insurance premium rate: {context["premium_rate"]*100:.1f}% of property value
+- Government subsidy: {context["subsidy_rate"]*100:.0f}% of elevation cost {"(you may qualify)" if agent.is_MG else "(general availability)"}
+- Community action rate: {context.get("community_action_rate", 0)*100:.0f}% of neighbors have adapted
+"""
+    
+    # === SC: Trust/Self-Confidence ===
+    trust_ins = agent.trust_in_insurance
+    trust_neigh = agent.trust_in_neighbors
+    sc_context = f"""
+**Social Context (SC):**
+- Trust in insurance: {"High" if trust_ins > 0.6 else "Moderate" if trust_ins > 0.3 else "Low"}
+- Trust in neighbors: {"High" if trust_neigh > 0.6 else "Moderate" if trust_neigh > 0.3 else "Low"}
+"""
+    
+    return f"""You are a {"homeowner" if agent.homeownership == "owner" else "renter"} in a flood-prone area.
+
+{tp_context}
+{cp_context}
+{sp_context}
+{sc_context}
+
+Based on these factors, evaluate your situation and choose an action.
+
+{_get_options(agent)}
+
+Please respond:
+Threat Appraisal: [Your assessment of threat level]
+Coping Appraisal: [Your assessment of your ability to cope]
+Final Decision: [number]"""
+```
+
+#### Construct-based Validation Rules
+
+| Construct | Validation Rule | Example |
+|-----------|----------------|---------|
+| TP + CP | High TP + High CP + DN = 矛盾 | "Very worried" + "Can afford" + do_nothing |
+| TP + CP | Low TP + Relocate = 過度反應 | "Not worried" + relocate |
+| CP + SP | MG + Subsidy available + "can't afford" + DN = 矛盾 | 補助可用但說負擔不起 |
+| SC | Low trust + Buy insurance = 需要解釋 | "Distrust insurance" + buy |
+
+### 3. Prompts (對齊現有 PMT)
 
 | Agent Type | Prompt 內容 |
 |------------|------------|
