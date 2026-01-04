@@ -518,78 +518,150 @@ p(a),g = σ(w0 + w1*TP + w2*CP + w3*SP)
 | **SC** (Self-Confidence) | trust_in_insurance, trust_in_neighbors | 問卷直接載入 |
 | **PA** (Previous Adaptation) | elevated, has_insurance, memory | 狀態 + 記憶 |
 
-#### Household Prompt Construct 整合
+#### 現有範例做法 (v2_skill_governed)
 
 ```python
-def build_household_prompt_with_constructs(agent: HouseholdAgent, context: dict) -> str:
-    """整合 ABM constructs 到 prompt"""
-    
-    # === TP: Threat Perception ===
-    tp_context = f"""
-**Threat Perception (TP):**
-- Prior flood experience: {"Yes, you have experienced flooding before" if agent.prior_flood_experience else "No direct experience"}
-- Current year flood: {"A flood occurred this year" if context["flood_event"] else "No flood this year"}
-- Memories: {'; '.join(agent.memory[-3:]) if agent.memory else "No recent memories"}
+# 現有做法: 純 LLM 自評 (方法 A)
 """
-    
-    # === CP: Coping Perception ===
-    if agent.is_MG:
-        affordability = f"Limited income (${agent.income:,.0f}/year), housing costs {agent.housing_cost_ratio*100:.0f}% of income"
-        coping_ability = "You may struggle to afford major adaptations without assistance"
-    else:
-        affordability = f"Income ${agent.income:,.0f}/year, housing costs {agent.housing_cost_ratio*100:.0f}% of income"
-        coping_ability = "You can consider various adaptation options"
-    
-    cp_context = f"""
-**Coping Perception (CP):**
-- Financial situation: {affordability}
-- Coping ability: {coping_ability}
-- Already elevated: {"Yes (protected)" if agent.elevated else "No"}
-- Current insurance: {"Yes" if agent.has_insurance else "No"}
+Context: memory, insurance, trust (自然語言)
+PMT 因素列表 (讓 LLM 考慮)
+輸出: Threat Appraisal, Coping Appraisal, Decision
 """
+```
+
+#### 混合方法設計 (方法 C - 推薦)
+
+**核心概念: 系統計算 Hint + LLM 自評 + Validator 檢查偏離**
+
+```python
+def compute_construct_hints(agent: HouseholdAgent, context: dict) -> dict:
+    """系統計算 construct hints (不是硬規則，是參考)"""
     
-    # === SP: Stakeholder Perception ===
-    sp_context = f"""
-**Stakeholder Perception (SP):**
-- Insurance premium rate: {context["premium_rate"]*100:.1f}% of property value
-- Government subsidy: {context["subsidy_rate"]*100:.0f}% of elevation cost {"(you may qualify)" if agent.is_MG else "(general availability)"}
-- Community action rate: {context.get("community_action_rate", 0)*100:.0f}% of neighbors have adapted
-"""
+    # === TP Hint: 威脅感知 ===
+    tp_score = 0.0
+    if context["flood_event"]:
+        tp_score += 0.4
+    if agent.prior_flood_experience:
+        tp_score += 0.3
+    if any("damage" in m.lower() for m in agent.memory[-3:]):
+        tp_score += 0.3
+    tp_hint = "HIGH" if tp_score > 0.6 else "MODERATE" if tp_score > 0.3 else "LOW"
     
-    # === SC: Trust/Self-Confidence ===
-    trust_ins = agent.trust_in_insurance
-    trust_neigh = agent.trust_in_neighbors
-    sc_context = f"""
-**Social Context (SC):**
-- Trust in insurance: {"High" if trust_ins > 0.6 else "Moderate" if trust_ins > 0.3 else "Low"}
-- Trust in neighbors: {"High" if trust_neigh > 0.6 else "Moderate" if trust_neigh > 0.3 else "Low"}
-"""
+    # === CP Hint: 應對能力 ===
+    cp_score = 0.0
+    if agent.income > 50000:
+        cp_score += 0.3
+    if agent.housing_cost_ratio < 0.30:
+        cp_score += 0.3
+    if agent.is_MG and context["subsidy_rate"] > 0.3:
+        cp_score += 0.3  # MG 有補助提升應對能力
+    if agent.elevated:
+        cp_score += 0.2  # 已有保護
+    cp_hint = "HIGH" if cp_score > 0.6 else "MODERATE" if cp_score > 0.3 else "LOW"
+    
+    return {"tp_hint": tp_hint, "cp_hint": cp_hint, "tp_score": tp_score, "cp_score": cp_score}
+```
+
+#### 混合 Prompt 結構
+
+```python
+def build_hybrid_prompt(agent: HouseholdAgent, context: dict) -> str:
+    hints = compute_construct_hints(agent, context)
     
     return f"""You are a {"homeowner" if agent.homeownership == "owner" else "renter"} in a flood-prone area.
 
-{tp_context}
-{cp_context}
-{sp_context}
-{sc_context}
+**Your Situation:**
+- Prior flood experience: {"Yes" if agent.prior_flood_experience else "No"}
+- Current year: {"Flood occurred" if context["flood_event"] else "No flood"}
+- House elevated: {"Yes" if agent.elevated else "No"}
+- Has insurance: {"Yes" if agent.has_insurance else "No"}
+- Income level: {"Limited" if agent.is_MG else "Adequate"}
 
-Based on these factors, evaluate your situation and choose an action.
+**Your Memories:**
+{chr(10).join(f'- {m}' for m in agent.memory[-3:]) if agent.memory else "- No recent memories"}
+
+**Trust Levels:**
+- Insurance company: {_verbalize_trust(agent.trust_in_insurance)}
+- Neighbors: {_verbalize_trust(agent.trust_in_neighbors)}
+
+**Available Support:**
+- Insurance premium: {context["premium_rate"]*100:.1f}% of property value
+- Government subsidy: {context["subsidy_rate"]*100:.0f}%{" (you may qualify)" if agent.is_MG else ""}
+
+---
+
+**System Assessment (for your reference):**
+- Suggested threat level: {hints["tp_hint"]}
+- Suggested coping capacity: {hints["cp_hint"]}
+
+You may agree or disagree with this assessment based on your own judgment.
+
+---
+
+Using Protection Motivation Theory, evaluate:
+- Perceived Severity & Vulnerability (Threat)
+- Response Efficacy, Self-Efficacy & Cost (Coping)
 
 {_get_options(agent)}
 
 Please respond:
-Threat Appraisal: [Your assessment of threat level]
-Coping Appraisal: [Your assessment of your ability to cope]
-Final Decision: [number]"""
+Threat Appraisal: [Your assessment - agree/disagree with suggested level and why]
+Coping Appraisal: [Your assessment - agree/disagree with suggested level and why]
+Final Decision: [number only]"""
 ```
 
-#### Construct-based Validation Rules
+#### Hybrid Validator: 檢查偏離程度
 
-| Construct | Validation Rule | Example |
-|-----------|----------------|---------|
-| TP + CP | High TP + High CP + DN = 矛盾 | "Very worried" + "Can afford" + do_nothing |
-| TP + CP | Low TP + Relocate = 過度反應 | "Not worried" + relocate |
-| CP + SP | MG + Subsidy available + "can't afford" + DN = 矛盾 | 補助可用但說負擔不起 |
-| SC | Low trust + Buy insurance = 需要解釋 | "Distrust insurance" + buy |
+```python
+class ConstructDeviationValidator(SkillValidator):
+    """檢查 LLM 評估與系統 hint 的偏離程度"""
+    
+    name = "ConstructDeviationValidator"
+    
+    def validate(self, proposal: SkillProposal, context: Dict[str, Any],
+                 registry: SkillRegistry) -> ValidationResult:
+        warnings = []
+        
+        tp_hint = context.get("tp_hint", "MODERATE")
+        cp_hint = context.get("cp_hint", "MODERATE")
+        
+        threat = proposal.reasoning.get("threat", "").lower()
+        coping = proposal.reasoning.get("coping", "").lower()
+        skill = proposal.skill_name
+        
+        # 檢查 TP 偏離
+        if tp_hint == "HIGH" and any(kw in threat for kw in ["low", "not worried", "safe"]):
+            warnings.append(f"TP deviation: System=HIGH, LLM claims low threat")
+        
+        if tp_hint == "LOW" and any(kw in threat for kw in ["very worried", "high risk", "terrified"]):
+            warnings.append(f"TP deviation: System=LOW, LLM claims high threat")
+        
+        # 檢查 CP 偏離
+        if cp_hint == "HIGH" and "cannot afford" in coping:
+            warnings.append(f"CP deviation: System=HIGH capacity, LLM claims cannot afford")
+        
+        # 嚴重偏離才報錯，輕微偏離只警告
+        errors = []
+        if len(warnings) >= 2:
+            errors.append("Multiple construct deviations detected - may indicate inconsistency")
+        
+        return ValidationResult(
+            valid=len(errors) == 0,
+            validator_name=self.name,
+            errors=errors,
+            warnings=warnings
+        )
+```
+
+#### 混合方法比較
+
+| 方面 | 方法 A (純自評) | 方法 C (混合) |
+|------|----------------|--------------|
+| Prompt | 只有事實 context | 事實 + System hints |
+| LLM 輸出 | 完全自由評估 | 參考 hint 但可偏離 |
+| Validation | 只檢查邏輯一致 | 額外檢查偏離程度 |
+| 可解釋性 | 中 | 高 (有對照) |
+| 與傳統 ABM 對比 | 難 | 容易 (相同 hint 計算) |
 
 ### 3. Prompts (對齊現有 PMT)
 
