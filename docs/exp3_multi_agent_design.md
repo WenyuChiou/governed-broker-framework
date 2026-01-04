@@ -10,8 +10,8 @@
 
 | PR # | Branch | 主題 | 狀態 |
 |------|--------|------|------|
-| 1 | `exp3/design-agent-types` | Agent Types 定義 | 🟡 討論中 |
-| 2 | `exp3/design-decision-making` | Decision-Making 機制 | ⬜ 待討論 |
+| 1 | `exp3/design-agent-types` | Agent Types 定義 | ✅ 完成 |
+| 2 | `exp3/design-decision-making` | Decision-Making 機制 | 🟡 **進行中** |
 | 3 | `exp3/design-behaviors` | Adaptation Behaviors | ⬜ 待討論 |
 | 4 | `exp3/implementation` | 實作 | ⬜ 待實作 |
 
@@ -286,6 +286,167 @@ class GovernmentAgent:
 3. **Government 決策**: 何時調整補助？觸發條件？
 
 是否繼續 PR 2?
+
+---
+
+## PR 2: Decision-Making 機制
+
+### 備註: MG 直接來自資料
+
+```python
+# MG 欄位直接從問卷資料讀取，不需計算
+agent.is_MG = survey_data["is_MG"]  # True/False
+```
+
+### 2.1 Household Decision-Making
+
+#### Prompt 結構 (依 Agent Type 調整)
+
+```python
+def build_household_prompt(agent: HouseholdAgent, context: dict) -> str:
+    """根據 Agent Type 產生不同的 prompt"""
+    
+    # 基礎 PMT 結構
+    base = f"""You are a homeowner in flood-prone area.
+Your situation:
+- Income: ${agent.income:,}/year
+- Housing cost burden: {agent.housing_cost_ratio*100:.0f}% of income
+- Vehicle: {"Yes" if agent.has_vehicle else "No"}
+- Prior flood experience: {"Yes" if agent.prior_flood_experience else "No"}
+
+Current state:
+- House elevated: {"Yes" if agent.elevated else "No"}
+- Has insurance: {"Yes" if agent.has_insurance else "No"}
+- Current year: {context["year"]}
+- Flood this year: {"Yes" if context["flood_event"] else "No"}
+
+Recent memories:
+{chr(10).join(f'- {m}' for m in agent.memory[-5:])}
+"""
+    
+    # Owner vs Renter 選項差異
+    if agent.homeownership == "owner":
+        options = """Available actions:
+1. Buy flood insurance
+2. Elevate house (one-time, if not already elevated)
+3. Buyout program (permanent, removes you from flood zone)
+4. Do nothing"""
+    else:  # renter
+        options = """Available actions:
+1. Buy contents-only insurance
+2. Relocate to safer area
+3. Do nothing"""
+    
+    # MG 特殊資訊
+    if agent.is_MG:
+        subsidy_info = f"""
+Government subsidy available: {context["subsidy_rate"]*100:.0f}% of elevation cost
+(Priority given to marginalized households)"""
+    else:
+        subsidy_info = ""
+    
+    return base + options + subsidy_info + """
+
+Using Protection Motivation Theory, evaluate:
+- Threat Appraisal: severity and vulnerability
+- Coping Appraisal: efficacy and cost
+
+Respond in format:
+Threat Appraisal: [your assessment]
+Coping Appraisal: [your assessment]
+Final Decision: [number only]"""
+```
+
+#### Validation Pipeline (Household)
+
+| Validator | 檢查 | 拒絕範例 |
+|-----------|------|---------|
+| Admissibility | Skill 存在? Agent type 允許? | Renter 選 "elevate_house" |
+| Feasibility | 前置條件滿足? | 已 elevated 再選 elevate |
+| FinancialConsistency | 成本邏輯一致? | MG + "cannot afford" + elevate (無補助) |
+
+### 2.2 Insurance Decision-Making
+
+```python
+class InsuranceDecisionPolicy:
+    """保險公司決策邏輯 (規則式，非 LLM)"""
+    
+    def decide_premium_adjustment(self, 
+                                   year: int,
+                                   claim_history: List[float],
+                                   total_premium_collected: float) -> float:
+        """每年決定保費調整"""
+        
+        loss_ratio = sum(claim_history) / total_premium_collected if total_premium_collected > 0 else 0
+        
+        if loss_ratio > 0.80:
+            return 1.15  # 漲 15%
+        elif loss_ratio > 0.60:
+            return 1.05  # 漲 5%
+        elif loss_ratio < 0.30:
+            return 0.95  # 降 5%
+        else:
+            return 1.00  # 不變
+```
+
+### 2.3 Government Decision-Making
+
+```python
+class GovernmentDecisionPolicy:
+    """政府決策邏輯 (規則式，非 LLM)"""
+    
+    def decide_subsidy_adjustment(self,
+                                   year: int,
+                                   mg_adoption_rate: float,
+                                   flood_occurred: bool,
+                                   budget_remaining: float) -> float:
+        """每年決定補助調整"""
+        
+        # 災後且 MG 採用率低 → 提高補助
+        if flood_occurred and mg_adoption_rate < 0.30:
+            return min(0.80, self.current_rate * 1.20)
+        
+        # 採用率高 → 可降低補助
+        if mg_adoption_rate > 0.60:
+            return max(0.30, self.current_rate * 0.90)
+        
+        # 預算不足 → 降低
+        if budget_remaining < 0.20 * self.initial_budget:
+            return self.current_rate * 0.80
+        
+        return self.current_rate
+```
+
+### 2.4 Decision Sequence per Year
+
+```
+每年決策順序:
+┌─────────────────────────────────────────────────────────────┐
+│  Phase 1: Institutional Decisions (規則式)                  │
+│  ├── Government: adjust_subsidy()                          │
+│  └── Insurance: adjust_premium()                           │
+│                                                             │
+│  Phase 2: Household Decisions (LLM)                        │
+│  ├── For each active household:                            │
+│  │   ├── Build context (include new premium/subsidy)       │
+│  │   ├── Generate prompt                                   │
+│  │   ├── LLM inference                                     │
+│  │   ├── Validate skill                                    │
+│  │   └── Execute if approved                               │
+│  │                                                         │
+│  Phase 3: Settlement                                        │
+│  ├── Process insurance claims (if flood)                   │
+│  └── Update statistics for next year                       │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 待討論: PR 2
+
+1. **Insurance/Government 是否也用 LLM?** 還是如上用規則式?
+2. **Prompt 結構是否合適?** MG/NMG 差異是否足夠?
+3. **每年執行順序?** 上述 3 Phase 結構?
 
 ---
 
