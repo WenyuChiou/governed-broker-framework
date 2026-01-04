@@ -720,39 +720,96 @@ Yearly audit data can be used for:
 
 ---
 
-## PR 2.5: Multi-Agent Validator 設計
+## PR 2.5: Multi-Agent Validator Design
 
-### 需要新增/擴展的 Validators
+### Existing Validators (from v2_skill_governed)
 
-#### 1. AgentTypeAdmissibilityValidator (擴展)
+| Validator | Function | Layer |
+|-----------|----------|-------|
+| **SkillAdmissibilityValidator** | Skill exists? Agent type allowed? | 1 |
+| **ContextFeasibilityValidator** | Preconditions met? | 2 |
+| **InstitutionalConstraintValidator** | Once-only, permanent | 3 |
+| **EffectSafetyValidator** | Only modifies allowed state fields? | 4 |
+| **PMTConsistencyValidator** | Threat-coping logic consistent? | 5 |
+| **UncertaintyValidator** | Uncertain language? (disabled) | 6 |
+
+### New/Extended Validators for Multi-Agent
+
+#### 1. AgentTypeAdmissibilityValidator (Extended)
 
 ```python
 class AgentTypeAdmissibilityValidator(SkillAdmissibilityValidator):
-    """擴展以支援 multi-agent types"""
+    """Extended to support multi-agent types"""
+    
+    name = "AgentTypeAdmissibilityValidator"
     
     def validate(self, proposal: SkillProposal, context: Dict[str, Any],
                  registry: SkillRegistry) -> ValidationResult:
         errors = []
         agent_type = context.get("agent_type")  # household_owner, household_renter, insurance, government
         
-        # 檢查 skill 是否屬於該 agent type
-        skill_category = self._get_skill_category(proposal.skill_name)
-        if skill_category != agent_type:
+        # Check if skill belongs to this agent type
+        skill_def = registry.get(proposal.skill_name)
+        if skill_def and agent_type not in skill_def.eligible_agents:
             errors.append(f"Skill '{proposal.skill_name}' not available for {agent_type}")
         
-        # Renter 不能選 elevate_house 或 buyout_program
+        # Renter cannot use owner-only skills
         if agent_type == "household_renter":
             if proposal.skill_name in ["elevate_house", "buyout_program"]:
                 errors.append(f"Renter cannot use owner-only skill: {proposal.skill_name}")
         
-        return ValidationResult(valid=len(errors) == 0, errors=errors)
+        return ValidationResult(valid=len(errors) == 0, validator_name=self.name, errors=errors)
 ```
 
-#### 2. MGSubsidyConsistencyValidator (新增)
+#### 2. ConstructConsistencyValidator (New - Core)
+
+```python
+class ConstructConsistencyValidator(SkillValidator):
+    """Validate consistency between constructs (TP/CP/SP/SC/PA) and decision"""
+    
+    name = "ConstructConsistencyValidator"
+    
+    def validate(self, proposal: SkillProposal, context: Dict[str, Any],
+                 registry: SkillRegistry) -> ValidationResult:
+        errors = []
+        
+        # Get parsed construct levels from LLM output
+        tp = context.get("parsed_tp_level", "MODERATE")  # LOW/MODERATE/HIGH
+        cp = context.get("parsed_cp_level", "MODERATE")
+        sp = context.get("parsed_sp_level", "MODERATE")
+        sc = context.get("parsed_sc_level", "MODERATE")
+        pa = context.get("parsed_pa_level", "NONE")      # NONE/PARTIAL/FULL
+        skill = proposal.skill_name
+        
+        # Rule 1: HIGH TP + HIGH CP + do_nothing = inconsistent
+        if tp == "HIGH" and cp == "HIGH" and skill == "do_nothing":
+            errors.append("HIGH threat + HIGH coping but chose do_nothing")
+        
+        # Rule 2: LOW TP + relocate = overreaction
+        if tp == "LOW" and skill == "relocate":
+            errors.append("LOW threat but chose extreme action (relocate)")
+        
+        # Rule 3: LOW CP + expensive action = inconsistent
+        if cp == "LOW" and skill in ["elevate_house", "relocate"]:
+            errors.append("LOW coping capacity but chose expensive action")
+        
+        # Rule 4: FULL PA + elevate_house = already done
+        if pa == "FULL" and skill == "elevate_house":
+            errors.append("FULL previous adaptation but chose elevate again")
+        
+        # Rule 5: LOW SC + buy_insurance = trust issue
+        if sc == "LOW" and skill == "buy_insurance":
+            # Warning only, not error - agent may override trust concern
+            pass
+        
+        return ValidationResult(valid=len(errors) == 0, validator_name=self.name, errors=errors)
+```
+
+#### 3. MGSubsidyConsistencyValidator (New)
 
 ```python
 class MGSubsidyConsistencyValidator(SkillValidator):
-    """驗證 MG 補助邏輯一致性"""
+    """Validate MG subsidy logic consistency"""
     
     name = "MGSubsidyConsistencyValidator"
     
@@ -763,50 +820,54 @@ class MGSubsidyConsistencyValidator(SkillValidator):
         is_mg = context.get("is_MG", False)
         subsidy_rate = context.get("subsidy_rate", 0)
         skill = proposal.skill_name
-        coping = proposal.reasoning.get("coping", "").lower()
+        cp_explanation = context.get("parsed_cp_explanation", "").lower()
         
-        # MG 有補助但說 "cannot afford" + 選 do_nothing
+        # MG has subsidy but claims "cannot afford" + chose do_nothing
         if is_mg and subsidy_rate > 0.3:
-            if "cannot afford" in coping and skill == "do_nothing":
+            if "cannot afford" in cp_explanation and skill == "do_nothing":
                 errors.append("MG has subsidy available but claims cannot afford")
         
-        # NMG 說有補助 (不應該知道)
-        if not is_mg and "subsidy" in proposal.reasoning.get("coping", "").lower():
-            errors.append("NMG references subsidy information they shouldn't have")
+        # NMG references subsidy (should not have this information)
+        if not is_mg:
+            sp_explanation = context.get("parsed_sp_explanation", "").lower()
+            if "subsidy" in sp_explanation and "you may qualify" not in sp_explanation:
+                errors.append("NMG references subsidy information incorrectly")
         
-        return ValidationResult(valid=len(errors) == 0, errors=errors)
+        return ValidationResult(valid=len(errors) == 0, validator_name=self.name, errors=errors)
 ```
 
-#### 3. InsurancePolicyValidator (新增)
+#### 4. InsurancePolicyValidator (New)
 
 ```python
 class InsurancePolicyValidator(SkillValidator):
-    """驗證 Insurance agent 決策邏輯"""
+    """Validate Insurance agent decision logic"""
     
     name = "InsurancePolicyValidator"
     
     def validate(self, proposal: SkillProposal, context: Dict[str, Any],
                  registry: SkillRegistry) -> ValidationResult:
         errors = []
+        warnings = []
         
         loss_ratio = context.get("loss_ratio", 0)
         skill = proposal.skill_name
         
-        # 高 loss ratio 但選 lower_premium
+        # High loss ratio but chose lower_premium - unsustainable
         if loss_ratio > 0.80 and skill == "lower_premium":
-            errors.append("High loss ratio but chose to lower premium - unsustainable")
+            errors.append("High loss ratio (>80%) but chose to lower premium - unsustainable")
         
-        # 低 loss ratio 但選 raise_premium (可能過度)
-        # 這個可能不需要錯誤，只是 warning
+        # Low loss ratio but chose raise_premium - may be excessive (warning only)
+        if loss_ratio < 0.30 and skill == "raise_premium":
+            warnings.append("Low loss ratio (<30%) but chose to raise premium")
         
-        return ValidationResult(valid=len(errors) == 0, errors=errors)
+        return ValidationResult(valid=len(errors) == 0, validator_name=self.name, errors=errors, warnings=warnings)
 ```
 
-#### 4. GovernmentBudgetValidator (新增)
+#### 5. GovernmentBudgetValidator (New)
 
 ```python
 class GovernmentBudgetValidator(SkillValidator):
-    """驗證 Government agent 預算一致性"""
+    """Validate Government agent budget consistency"""
     
     name = "GovernmentBudgetValidator"
     
@@ -818,42 +879,71 @@ class GovernmentBudgetValidator(SkillValidator):
         budget_total = context.get("budget_total", 1)
         skill = proposal.skill_name
         
-        # 預算不足但選 increase_subsidy
+        # Budget nearly exhausted but chose increase_subsidy
         if budget_remaining < 0.20 * budget_total and skill == "increase_subsidy":
-            errors.append("Budget nearly exhausted but chose to increase subsidy")
+            errors.append("Budget nearly exhausted (<20%) but chose to increase subsidy")
         
-        return ValidationResult(valid=len(errors) == 0, errors=errors)
+        return ValidationResult(valid=len(errors) == 0, validator_name=self.name, errors=errors)
 ```
 
-### Validator Pipeline (Multi-Agent)
+### Validator Pipeline (by Agent Type)
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │  Household Decision                                         │
-│  ├── AgentTypeAdmissibilityValidator                       │
-│  ├── ContextFeasibilityValidator                           │
-│  ├── InstitutionalConstraintValidator                      │
-│  ├── EffectSafetyValidator                                 │
-│  ├── PMTConsistencyValidator                               │
-│  └── MGSubsidyConsistencyValidator (新)                    │
+│  ├── 1. AgentTypeAdmissibilityValidator                    │
+│  ├── 2. ContextFeasibilityValidator                        │
+│  ├── 3. InstitutionalConstraintValidator                   │
+│  ├── 4. EffectSafetyValidator                              │
+│  ├── 5. ConstructConsistencyValidator (NEW - uses 5 constructs)
+│  └── 6. MGSubsidyConsistencyValidator (NEW)                │
 │                                                             │
 │  Insurance Decision                                         │
-│  ├── SkillAdmissibilityValidator                           │
-│  └── InsurancePolicyValidator (新)                         │
+│  ├── 1. SkillAdmissibilityValidator                        │
+│  └── 2. InsurancePolicyValidator (NEW)                     │
 │                                                             │
 │  Government Decision                                        │
-│  ├── SkillAdmissibilityValidator                           │
-│  └── GovernmentBudgetValidator (新)                        │
+│  ├── 1. SkillAdmissibilityValidator                        │
+│  └── 2. GovernmentBudgetValidator (NEW)                    │
 └─────────────────────────────────────────────────────────────┘
+```
+
+### Validation Factory
+
+```python
+def create_validators_for_agent(agent_type: str) -> List[SkillValidator]:
+    """Create appropriate validator pipeline based on agent type"""
+    
+    if agent_type in ["household_owner", "household_renter"]:
+        return [
+            AgentTypeAdmissibilityValidator(),
+            ContextFeasibilityValidator(),
+            InstitutionalConstraintValidator(),
+            EffectSafetyValidator(),
+            ConstructConsistencyValidator(),
+            MGSubsidyConsistencyValidator(),
+        ]
+    elif agent_type == "insurance":
+        return [
+            SkillAdmissibilityValidator(),
+            InsurancePolicyValidator(),
+        ]
+    elif agent_type == "government":
+        return [
+            SkillAdmissibilityValidator(),
+            GovernmentBudgetValidator(),
+        ]
+    else:
+        return [SkillAdmissibilityValidator()]
 ```
 
 ---
 
-## 下一步
+## Next Steps
 
-1. ✅ Skills 已建立 (skill_registry.yaml)
-2. ✅ Prompts 已對齊 (PMT 結構)
-3. ⬜ **Validators** - 確認上述設計後實作
+1. ✅ Skills defined (skill_registry.yaml)
+2. ✅ Prompts aligned (5 constructs: TP/CP/SP/SC/PA)
+3. ✅ **Validators designed** (5 new validators)
 4. ⬜ Implementation
 
 ---
