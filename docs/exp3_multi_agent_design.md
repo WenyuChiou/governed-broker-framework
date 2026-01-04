@@ -763,47 +763,90 @@ class AgentTypeAdmissibilityValidator(SkillAdmissibilityValidator):
 
 #### 2. ConstructConsistencyValidator (New - Core)
 
+**Literature Basis:**
+- **Bamberg et al. (2017)**: Meta-analysis of 35 studies (N=35,419) - CP (r=0.30) is stronger predictor than TP (r=0.23)
+- **Grothmann & Reusswig (2006)**: HIGH TP + HIGH CP → Protection Motivation; HIGH TP + LOW CP → Non-protective responses (denial/fatalism)
+- **PADM (Lindell & Perry, 2012)**: SP (Stakeholder Perception) influences trust and action
+
 ```python
 class ConstructConsistencyValidator(SkillValidator):
-    """Validate consistency between constructs (TP/CP/SP/SC/PA) and decision"""
+    """
+    Validate consistency between constructs (TP/CP/SP) and decision.
+    
+    Literature citations:
+    - Bamberg et al. (2017): Meta-analysis confirms CP > TP as predictor
+    - Grothmann & Reusswig (2006): TP × CP interaction model
+    - Lindell & Perry (2012): PADM stakeholder perception
+    """
     
     name = "ConstructConsistencyValidator"
     
     def validate(self, proposal: SkillProposal, context: Dict[str, Any],
                  registry: SkillRegistry) -> ValidationResult:
         errors = []
+        warnings = []
         
         # Get parsed construct levels from LLM output
         tp = context.get("parsed_tp_level", "MODERATE")  # LOW/MODERATE/HIGH
         cp = context.get("parsed_cp_level", "MODERATE")
         sp = context.get("parsed_sp_level", "MODERATE")
-        sc = context.get("parsed_sc_level", "MODERATE")
-        pa = context.get("parsed_pa_level", "NONE")      # NONE/PARTIAL/FULL
         skill = proposal.skill_name
         
+        expensive_actions = ["elevate_house", "relocate", "buyout_program"]
+        
+        # === STRONG EVIDENCE RULES (Error) ===
+        
         # Rule 1: HIGH TP + HIGH CP + do_nothing = inconsistent
+        # Citation: Grothmann & Reusswig (2006) - this combination should lead to protection motivation
         if tp == "HIGH" and cp == "HIGH" and skill == "do_nothing":
-            errors.append("HIGH threat + HIGH coping but chose do_nothing")
+            errors.append("R1: HIGH TP + HIGH CP should motivate action [Grothmann & Reusswig 2006]")
         
-        # Rule 2: LOW TP + relocate = overreaction
-        if tp == "LOW" and skill == "relocate":
-            errors.append("LOW threat but chose extreme action (relocate)")
+        # Rule 2: LOW CP + expensive action = inconsistent
+        # Citation: Bamberg et al. (2017) - CP is strongest predictor; LOW CP = cannot afford
+        if cp == "LOW" and skill in expensive_actions:
+            errors.append("R2: LOW CP cannot afford expensive action [Bamberg et al. 2017]")
         
-        # Rule 3: LOW CP + expensive action = inconsistent
-        if cp == "LOW" and skill in ["elevate_house", "relocate"]:
-            errors.append("LOW coping capacity but chose expensive action")
+        # Rule 3: LOW TP + extreme action = overreaction
+        # Citation: Rogers (1983) PMT - threat appraisal necessary for extreme response
+        if tp == "LOW" and skill in ["relocate", "buyout_program"]:
+            errors.append("R3: LOW TP does not justify extreme action [Rogers 1983 PMT]")
         
-        # Rule 4: FULL PA + elevate_house = already done
-        if pa == "FULL" and skill == "elevate_house":
-            errors.append("FULL previous adaptation but chose elevate again")
+        # Rule 4: LOW SP + LOW TP + buy_insurance = irrational
+        # Citation: PADM - no threat + distrust = no motivation
+        if sp == "LOW" and tp == "LOW" and skill == "buy_insurance":
+            errors.append("R4: LOW SP + LOW TP makes insurance purchase irrational [PADM]")
         
-        # Rule 5: LOW SC + buy_insurance = trust issue
-        if sc == "LOW" and skill == "buy_insurance":
-            # Warning only, not error - agent may override trust concern
-            pass
+        # === MODERATE EVIDENCE RULES (Warning) ===
         
-        return ValidationResult(valid=len(errors) == 0, validator_name=self.name, errors=errors)
+        # Rule 5: LOW SP + buy_insurance (with threat) = unusual but possible
+        # Citation: Trust literature - fear may override distrust
+        if sp == "LOW" and tp in ["MODERATE", "HIGH"] and skill == "buy_insurance":
+            warnings.append("R5: LOW SP but chose insurance - fear overrides distrust?")
+        
+        # === VALID NON-PROTECTIVE PATH ===
+        # Note: HIGH TP + LOW CP + do_nothing is VALID (fatalism/denial)
+        # Citation: Grothmann & Reusswig (2006) - non-protective responses are documented
+        
+        return ValidationResult(
+            valid=len(errors) == 0, 
+            validator_name=self.name, 
+            errors=errors, 
+            warnings=warnings
+        )
 ```
+
+**Validation Rule Summary:**
+
+| Rule | Logic | Citation | Severity |
+|------|-------|----------|----------|
+| R1 | HIGH TP + HIGH CP + do_nothing | Grothmann & Reusswig (2006) | Error |
+| R2 | LOW CP + expensive action | Bamberg et al. (2017) meta-analysis | Error |
+| R3 | LOW TP + extreme action | Rogers (1983) PMT | Error |
+| R4 | LOW SP + LOW TP + buy_insurance | PADM (Lindell & Perry) | Error |
+| R5 | LOW SP + buy_insurance (with threat) | Trust literature | Warning |
+
+**Important Note:** 
+- HIGH TP + LOW CP + do_nothing is **VALID** (fatalism/denial pathway, Grothmann & Reusswig 2006)
 
 #### 3. MGSubsidyConsistencyValidator (New)
 
