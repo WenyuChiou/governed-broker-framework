@@ -475,9 +475,179 @@ Reason: [brief explanation]"""
 
 ## 待討論: PR 2
 
-1. **Insurance/Government 是否也用 LLM?** 還是如上用規則式?
-2. **Prompt 結構是否合適?** MG/NMG 差異是否足夠?
+~~1. **Insurance/Government 是否也用 LLM?** 還是如上用規則式?~~  **✅ 用簡單 LLM**
+~~2. **Prompt 結構是否合適?** MG/NMG 差異是否足夠?~~  **✅ 對齊現有 PMT**
 3. **每年執行順序?** 上述 3 Phase 結構?
+
+---
+
+## 目前已建立的 Constructs
+
+### 1. Skills (skill_registry.yaml)
+
+| Agent Type | Skills | Skill ID |
+|------------|--------|----------|
+| Household Owner | 保險、升高、政府收購、無作為 | buy_insurance, elevate_house, buyout_program, do_nothing |
+| Household Renter | 內容險、遷移、無作為 | buy_contents_insurance, relocate, do_nothing |
+| Insurance | 調漲/調降/維持保費 | raise/lower/maintain_premium |
+| Government | 調高/調低/維持補助、MG優先 | increase/decrease/maintain_subsidy, set_mg_priority |
+
+### 2. Prompts (對齊現有 PMT)
+
+| Agent Type | Prompt 內容 |
+|------------|------------|
+| **Household** | PMT 6 因素 + Owner/Renter 選項 + MG 補助資訊 |
+| **Insurance** | Loss ratio + Premium adjustment |
+| **Government** | MG adoption rate + Subsidy adjustment |
+
+### 3. 現有 Validators (validators/skill_validators.py)
+
+| Validator | 功能 | 層級 |
+|-----------|------|------|
+| **SkillAdmissibilityValidator** | Skill 存在? Agent type 允許? | 1 |
+| **ContextFeasibilityValidator** | Preconditions 滿足? | 2 |
+| **InstitutionalConstraintValidator** | Once-only, permanent | 3 |
+| **EffectSafetyValidator** | 只改允許的 state fields? | 4 |
+| **PMTConsistencyValidator** | 威脅-應對邏輯一致? | 5 |
+| **UncertaintyValidator** | 不確定語言? (disabled) | 6 |
+
+---
+
+## PR 2.5: Multi-Agent Validator 設計
+
+### 需要新增/擴展的 Validators
+
+#### 1. AgentTypeAdmissibilityValidator (擴展)
+
+```python
+class AgentTypeAdmissibilityValidator(SkillAdmissibilityValidator):
+    """擴展以支援 multi-agent types"""
+    
+    def validate(self, proposal: SkillProposal, context: Dict[str, Any],
+                 registry: SkillRegistry) -> ValidationResult:
+        errors = []
+        agent_type = context.get("agent_type")  # household_owner, household_renter, insurance, government
+        
+        # 檢查 skill 是否屬於該 agent type
+        skill_category = self._get_skill_category(proposal.skill_name)
+        if skill_category != agent_type:
+            errors.append(f"Skill '{proposal.skill_name}' not available for {agent_type}")
+        
+        # Renter 不能選 elevate_house 或 buyout_program
+        if agent_type == "household_renter":
+            if proposal.skill_name in ["elevate_house", "buyout_program"]:
+                errors.append(f"Renter cannot use owner-only skill: {proposal.skill_name}")
+        
+        return ValidationResult(valid=len(errors) == 0, errors=errors)
+```
+
+#### 2. MGSubsidyConsistencyValidator (新增)
+
+```python
+class MGSubsidyConsistencyValidator(SkillValidator):
+    """驗證 MG 補助邏輯一致性"""
+    
+    name = "MGSubsidyConsistencyValidator"
+    
+    def validate(self, proposal: SkillProposal, context: Dict[str, Any],
+                 registry: SkillRegistry) -> ValidationResult:
+        errors = []
+        
+        is_mg = context.get("is_MG", False)
+        subsidy_rate = context.get("subsidy_rate", 0)
+        skill = proposal.skill_name
+        coping = proposal.reasoning.get("coping", "").lower()
+        
+        # MG 有補助但說 "cannot afford" + 選 do_nothing
+        if is_mg and subsidy_rate > 0.3:
+            if "cannot afford" in coping and skill == "do_nothing":
+                errors.append("MG has subsidy available but claims cannot afford")
+        
+        # NMG 說有補助 (不應該知道)
+        if not is_mg and "subsidy" in proposal.reasoning.get("coping", "").lower():
+            errors.append("NMG references subsidy information they shouldn't have")
+        
+        return ValidationResult(valid=len(errors) == 0, errors=errors)
+```
+
+#### 3. InsurancePolicyValidator (新增)
+
+```python
+class InsurancePolicyValidator(SkillValidator):
+    """驗證 Insurance agent 決策邏輯"""
+    
+    name = "InsurancePolicyValidator"
+    
+    def validate(self, proposal: SkillProposal, context: Dict[str, Any],
+                 registry: SkillRegistry) -> ValidationResult:
+        errors = []
+        
+        loss_ratio = context.get("loss_ratio", 0)
+        skill = proposal.skill_name
+        
+        # 高 loss ratio 但選 lower_premium
+        if loss_ratio > 0.80 and skill == "lower_premium":
+            errors.append("High loss ratio but chose to lower premium - unsustainable")
+        
+        # 低 loss ratio 但選 raise_premium (可能過度)
+        # 這個可能不需要錯誤，只是 warning
+        
+        return ValidationResult(valid=len(errors) == 0, errors=errors)
+```
+
+#### 4. GovernmentBudgetValidator (新增)
+
+```python
+class GovernmentBudgetValidator(SkillValidator):
+    """驗證 Government agent 預算一致性"""
+    
+    name = "GovernmentBudgetValidator"
+    
+    def validate(self, proposal: SkillProposal, context: Dict[str, Any],
+                 registry: SkillRegistry) -> ValidationResult:
+        errors = []
+        
+        budget_remaining = context.get("budget_remaining", 0)
+        budget_total = context.get("budget_total", 1)
+        skill = proposal.skill_name
+        
+        # 預算不足但選 increase_subsidy
+        if budget_remaining < 0.20 * budget_total and skill == "increase_subsidy":
+            errors.append("Budget nearly exhausted but chose to increase subsidy")
+        
+        return ValidationResult(valid=len(errors) == 0, errors=errors)
+```
+
+### Validator Pipeline (Multi-Agent)
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Household Decision                                         │
+│  ├── AgentTypeAdmissibilityValidator                       │
+│  ├── ContextFeasibilityValidator                           │
+│  ├── InstitutionalConstraintValidator                      │
+│  ├── EffectSafetyValidator                                 │
+│  ├── PMTConsistencyValidator                               │
+│  └── MGSubsidyConsistencyValidator (新)                    │
+│                                                             │
+│  Insurance Decision                                         │
+│  ├── SkillAdmissibilityValidator                           │
+│  └── InsurancePolicyValidator (新)                         │
+│                                                             │
+│  Government Decision                                        │
+│  ├── SkillAdmissibilityValidator                           │
+│  └── GovernmentBudgetValidator (新)                        │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 下一步
+
+1. ✅ Skills 已建立 (skill_registry.yaml)
+2. ✅ Prompts 已對齊 (PMT 結構)
+3. ⬜ **Validators** - 確認上述設計後實作
+4. ⬜ Implementation
 
 ---
 
