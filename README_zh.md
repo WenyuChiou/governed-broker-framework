@@ -22,6 +22,7 @@ Governed Broker Framework 為建構可靠的 LLM 基礎 Agent-Based Models (ABMs
 - **多階段驗證**: 可配置的驗證器確保可接受性、可行性、約束、安全性和一致性
 - **多代理人支援**: 支援具有不同技能和資格規則的異質代理人類型
 - **多層狀態**: Individual、Social、Shared 和 Institutional 狀態層，具有存取控制
+- **認知記憶**: 包含工作記憶 (Working) 與情節記憶 (Episodic)，支援主動檢索與被動儲存
 - **可擴展 LLM 提供者**: 預設 Ollama，可擴展至 OpenAI、Anthropic 等
 - **完整可追溯性**: 完整的審計軌跡以確保可重現性
 
@@ -132,6 +133,34 @@ Governed Broker Framework 為建構可靠的 LLM 基礎 Agent-Based Models (ABMs
 ![多代理人架構](docs/multi_agent_architecture.png)
 
 **流程**: Agents → LLM (Skill Proposal) → Governed Broker Layer (Context Builder + Validators) → State Manager，包含四層：Individual (memory)、Social (鄰居觀察)、Shared (環境)、Institutional (政策規則)。
+
+---
+
+## 記憶與認知架構 (V3 特性)
+
+本框架現在包含一個明確的 **Memory Layer (記憶層)**，位於 Governed Broker 和 Simulation State 之間，增強了代理人的一致性與學習能力。
+
+### 記憶元件
+*   **Working Memory (工作記憶)**: 短期儲存當下上下文 (例如：最近鄰居的動作、今年的政策)。
+*   **Episodic Memory (情節記憶)**: 長期儲存重要事件的歷史 (例如：過去的洪水災害、理賠紀錄、過去的決策)。
+
+### 資訊流
+1.  **主動檢索 (`retrieve()`)**: 
+    - 在做出決策之前，**Context Builder** 呼叫 `retrieve()` 獲取相關記憶。
+    - *範例*: "檢索過去 3 年的洪水災害和理賠成功率。"
+    - 這些數據會被注入到發送給 LLM 的 **Bounded Context (有界上下文)** 中。
+
+2.  **被動儲存 (`add_memory()`)**:
+    - 當 **Executor** 執行已驗證的技能後，觸發 `add_memory()`。
+    - 決策、結果以及任何驗證註記都會被儲存為新的記憶軌跡。
+    - *範例*: "決策：加高房屋 (第 5 年)。結果：成功。"
+
+### 增強型審計 (Audit)
+**Audit Writer** 捕捉認知過程的完整軌跡：
+*   **Input**: 提供了什麼上下文/記憶？
+*   **Reasoning**: LLM 的內部推理是什麼？
+*   **Validation**: 提案為何被接受或拒絕？
+*   **Execution**: 實際發生了什麼狀態變更？
 
 ---
 
