@@ -1,86 +1,196 @@
 """
-Memory Helpers - Skill-based and Event-based Memory Updates
+Memory Helpers - Unified Interface
 
-This module provides helper functions for updating agent memory based on:
-1. Skill execution (decisions)
-2. Environment events (floods, claims)
+Single entry point: add_memory(memory, event_type, data, year)
 
-These are meant to be called from run_experiment.py after actions/events.
+Passive: Called automatically by environment/orchestrator
+Active: memory.retrieve() called by agent as tool
 """
 
 from typing import Dict, Optional, Any
 from dataclasses import dataclass
 
-# Import from broker
 import sys
 sys.path.insert(0, '.')
 from broker.memory import CognitiveMemory, MemoryItem
 
 
 # =============================================================================
-# SKILL → MEMORY MAPPING
+# EVENT CONFIGURATIONS
 # =============================================================================
 
-SKILL_MEMORY_MAP = {
-    "buy_insurance": {
-        "template": "Year {year}: I purchased flood insurance (premium: ${premium:.0f})",
-        "template_simple": "Year {year}: I purchased flood insurance",
-        "importance": 0.7,
-        "tags": ["decision", "insurance"]
+EVENT_CONFIG = {
+    # Decision events
+    "decision": {
+        "buy_insurance": {
+            "template": "Year {year}: I purchased flood insurance",
+            "importance": 0.7,
+            "tags": ["decision", "insurance"]
+        },
+        "elevate_house": {
+            "template": "Year {year}: I elevated my house",
+            "importance": 0.8,
+            "tags": ["decision", "elevation"]
+        },
+        "relocate": {
+            "template": "Year {year}: I relocated to a safer area",
+            "importance": 0.9,
+            "tags": ["decision", "relocation"]
+        },
+        "do_nothing": {
+            "template": "Year {year}: I chose to wait",
+            "importance": 0.3,
+            "tags": ["decision", "inaction"]
+        }
     },
-    "elevate_house": {
-        "template": "Year {year}: I elevated my house with {subsidy_pct:.0%} subsidy",
-        "template_simple": "Year {year}: I elevated my house",
-        "importance": 0.8,
-        "tags": ["decision", "elevation"]
+    
+    # Flood events
+    "flood": {
+        "major": {
+            "template": "Year {year}: A major flood caused ${damage:,.0f} in damages",
+            "importance": 0.9,
+            "tags": ["flood", "major", "damage"]
+        },
+        "moderate": {
+            "template": "Year {year}: A moderate flood caused ${damage:,.0f} in damages",
+            "importance": 0.7,
+            "tags": ["flood", "moderate", "damage"]
+        },
+        "minor": {
+            "template": "Year {year}: A minor flood caused ${damage:,.0f} in damages",
+            "importance": 0.6,
+            "tags": ["flood", "minor", "damage"]
+        },
+        "no_damage": {
+            "template": "Year {year}: A flood occurred but my home was not damaged",
+            "importance": 0.4,
+            "tags": ["flood", "no_damage"]
+        }
     },
-    "relocate": {
-        "template": "Year {year}: I relocated to a safer area",
-        "template_simple": "Year {year}: I relocated to a safer area",
-        "importance": 0.9,
-        "tags": ["decision", "relocation"]
+    
+    # Claim events
+    "claim": {
+        "approved": {
+            "template": "Year {year}: Insurance paid ${payout:,.0f} for my claim",
+            "importance": 0.7,
+            "tags": ["insurance", "claim", "approved"]
+        },
+        "denied": {
+            "template": "Year {year}: My insurance claim was denied",
+            "importance": 0.85,
+            "tags": ["insurance", "claim", "denied"]
+        },
+        "partial": {
+            "template": "Year {year}: Insurance paid ${payout:,.0f} but I still owed ${oop:,.0f}",
+            "importance": 0.75,
+            "tags": ["insurance", "claim", "partial"]
+        }
     },
-    "do_nothing": {
-        "template": "Year {year}: I chose to wait and not take protective action",
-        "template_simple": "Year {year}: I chose to wait",
-        "importance": 0.3,
-        "tags": ["decision", "inaction"]
+    
+    # Social/Neighbor events (triggered at year beginning)
+    "neighbor": {
+        "elevated": {
+            "template": "Year {year}: {count} of my neighbors have elevated their homes",
+            "importance": 0.5,
+            "tags": ["social", "neighbor", "elevation"]
+        },
+        "insured": {
+            "template": "Year {year}: Most neighbors in my area have flood insurance",
+            "importance": 0.4,
+            "tags": ["social", "neighbor", "insurance"]
+        },
+        "relocated": {
+            "template": "Year {year}: {count} neighbors have relocated out of the area",
+            "importance": 0.5,
+            "tags": ["social", "neighbor", "relocation"]
+        }
+    },
+    
+    # Policy events (effective next year)
+    "policy": {
+        "subsidy_increase": {
+            "template": "Year {year}: Government announced subsidy increase to {rate:.0%}",
+            "importance": 0.6,
+            "tags": ["policy", "subsidy"]
+        },
+        "subsidy_decrease": {
+            "template": "Year {year}: Government reduced subsidy rate to {rate:.0%}",
+            "importance": 0.7,
+            "tags": ["policy", "subsidy"]
+        },
+        "buyout_offer": {
+            "template": "Year {year}: I received a buyout offer of ${amount:,.0f}",
+            "importance": 0.85,
+            "tags": ["policy", "buyout"]
+        }
+    },
+    
+    # Premium events
+    "premium": {
+        "increase": {
+            "template": "Year {year}: Insurance premiums increased by {pct:.0%}",
+            "importance": 0.5,
+            "tags": ["insurance", "premium"]
+        },
+        "decrease": {
+            "template": "Year {year}: Insurance premiums decreased by {pct:.0%}",
+            "importance": 0.4,
+            "tags": ["insurance", "premium"]
+        }
     }
 }
 
 
-def update_memory_from_skill(
+# =============================================================================
+# UNIFIED INTERFACE
+# =============================================================================
+
+def add_memory(
     memory: CognitiveMemory,
-    skill_id: str,
-    year: int,
-    context: Optional[Dict[str, Any]] = None
+    event_type: str,
+    data: Dict[str, Any],
+    year: int
 ) -> Optional[MemoryItem]:
     """
-    Add memory based on skill (decision) executed.
+    Unified memory add interface.
     
     Args:
         memory: Agent's cognitive memory
-        skill_id: The decision/skill ID (e.g., 'buy_insurance')
+        event_type: "decision", "flood", "claim", "neighbor", "policy", "premium"
+        data: Event-specific data dict
         year: Simulation year
-        context: Optional context dict with skill parameters
-                (e.g., {'premium': 1200, 'subsidy_pct': 0.5})
-    
+        
     Returns:
-        MemoryItem if added, None if skill not found
+        MemoryItem if added, None otherwise
     """
-    config = SKILL_MEMORY_MAP.get(skill_id)
+    handlers = {
+        "decision": _handle_decision,
+        "flood": _handle_flood,
+        "claim": _handle_claim,
+        "neighbor": _handle_neighbor,
+        "policy": _handle_policy,
+        "premium": _handle_premium,
+    }
+    
+    handler = handlers.get(event_type)
+    if handler:
+        return handler(memory, data, year)
+    return None
+
+
+# =============================================================================
+# EVENT HANDLERS
+# =============================================================================
+
+def _handle_decision(memory: CognitiveMemory, data: Dict, year: int) -> Optional[MemoryItem]:
+    """Handle decision event."""
+    skill_id = data.get("skill_id", "do_nothing")
+    config = EVENT_CONFIG["decision"].get(skill_id)
+    
     if not config:
         return None
-    
-    # Try to use full template with context, fall back to simple
-    try:
-        if context:
-            content = config["template"].format(year=year, **context)
-        else:
-            content = config["template_simple"].format(year=year)
-    except KeyError:
-        content = config["template_simple"].format(year=year)
-    
+        
+    content = config["template"].format(year=year, **data)
     return memory.add_experience(
         content=content,
         importance=config["importance"],
@@ -89,209 +199,132 @@ def update_memory_from_skill(
     )
 
 
-# =============================================================================
-# FLOOD EVENT → MEMORY
-# =============================================================================
-
-def update_memory_from_flood(
-    memory: CognitiveMemory,
-    flood_occurred: bool,
-    damage: float,
-    year: int
-) -> Optional[MemoryItem]:
-    """
-    Add memory based on flood experience.
+def _handle_flood(memory: CognitiveMemory, data: Dict, year: int) -> Optional[MemoryItem]:
+    """Handle flood event."""
+    damage = data.get("damage", 0)
+    occurred = data.get("occurred", damage > 0)
     
-    Args:
-        memory: Agent's cognitive memory
-        flood_occurred: Whether flood occurred this year
-        damage: Total damage to this agent
-        year: Simulation year
-    
-    Returns:
-        MemoryItem if added, None if no memory-worthy event
-    """
-    if damage > 0:
-        # Damage occurred - significant event
-        if damage > 50000:
-            severity = "major"
-            importance = 0.9
-        elif damage > 10000:
-            severity = "moderate"
-            importance = 0.7
-        else:
-            severity = "minor"
-            importance = 0.6
-        
-        content = f"Year {year}: A {severity} flood caused ${damage:,.0f} in damages to my home"
-        return memory.add_episodic(
-            content=content,
-            importance=importance,
-            year=year,
-            tags=["flood", severity, "damage"]
-        )
-    
-    elif flood_occurred:
-        # Flood but no damage (maybe elevated or lucky)
-        content = f"Year {year}: A flood occurred but my home was not damaged"
-        return memory.add_working(
-            content=content,
-            importance=0.4,
-            year=year,
-            tags=["flood", "no_damage"]
-        )
-    
-    return None
-
-
-# =============================================================================
-# INSURANCE CLAIM → MEMORY
-# =============================================================================
-
-def update_memory_from_claim(
-    memory: CognitiveMemory,
-    claim_filed: bool,
-    claim_approved: bool,
-    payout: float,
-    damage: float,
-    out_of_pocket: float,
-    year: int
-) -> Optional[MemoryItem]:
-    """
-    Add memory based on insurance claim experience.
-    
-    Args:
-        memory: Agent's cognitive memory
-        claim_filed: Whether a claim was filed
-        claim_approved: Whether claim was approved
-        payout: Insurance payout amount
-        damage: Total damage amount
-        out_of_pocket: Out-of-pocket payment
-        year: Simulation year
-    
-    Returns:
-        MemoryItem if added, None if no claim filed
-    """
-    if not claim_filed:
+    if not occurred and damage == 0:
         return None
     
-    if claim_approved:
-        if payout > 0:
-            coverage_pct = payout / damage if damage > 0 else 0
-            if coverage_pct >= 0.8:
-                content = f"Year {year}: Insurance fully covered my ${payout:,.0f} claim"
-                importance = 0.7
-            else:
-                content = f"Year {year}: Insurance paid ${payout:,.0f} but I still owed ${out_of_pocket:,.0f}"
-                importance = 0.75
-            
-            return memory.add_episodic(
-                content=content,
-                importance=importance,
-                year=year,
-                tags=["insurance", "claim", "approved"]
-            )
+    # Determine severity
+    if damage > 50000:
+        subtype = "major"
+    elif damage > 10000:
+        subtype = "moderate"
+    elif damage > 0:
+        subtype = "minor"
     else:
-        # Claim denied - very memorable
-        content = f"Year {year}: My insurance claim was denied"
-        return memory.add_episodic(
-            content=content,
-            importance=0.85,
-            year=year,
-            tags=["insurance", "claim", "denied"]
-        )
+        subtype = "no_damage"
     
-    return None
-
-
-# =============================================================================
-# HIGH OUT-OF-POCKET → MEMORY
-# =============================================================================
-
-def update_memory_from_oop(
-    memory: CognitiveMemory,
-    out_of_pocket: float,
-    year: int
-) -> Optional[MemoryItem]:
-    """
-    Add memory for significant out-of-pocket expenses.
+    config = EVENT_CONFIG["flood"][subtype]
+    content = config["template"].format(year=year, damage=damage)
     
-    Args:
-        memory: Agent's cognitive memory
-        out_of_pocket: Out-of-pocket payment amount
-        year: Simulation year
-    
-    Returns:
-        MemoryItem if OOP is significant, None otherwise
-    """
-    if out_of_pocket <= 5000:
-        return None  # Not significant enough
-    
-    if out_of_pocket > 20000:
-        content = f"Year {year}: I paid ${out_of_pocket:,.0f} out-of-pocket, a major financial burden"
-        importance = 0.85
-        tags = ["expense", "out_of_pocket", "major"]
+    if subtype == "no_damage":
+        return memory.add_working(content, config["importance"], year, config["tags"])
     else:
-        content = f"Year {year}: I paid ${out_of_pocket:,.0f} out-of-pocket for repairs"
-        importance = 0.6
-        tags = ["expense", "out_of_pocket"]
+        return memory.add_episodic(content, config["importance"], year, config["tags"])
+
+
+def _handle_claim(memory: CognitiveMemory, data: Dict, year: int) -> Optional[MemoryItem]:
+    """Handle insurance claim event."""
+    if not data.get("filed", False):
+        return None
     
-    return memory.add_experience(
-        content=content,
-        importance=importance,
-        year=year,
-        tags=tags
-    )
+    approved = data.get("approved", False)
+    payout = data.get("payout", 0)
+    oop = data.get("oop", 0)
+    damage = data.get("damage", 0)
+    
+    if not approved:
+        subtype = "denied"
+    elif damage > 0 and oop > damage * 0.2:  # >20% out of pocket
+        subtype = "partial"
+    else:
+        subtype = "approved"
+    
+    config = EVENT_CONFIG["claim"][subtype]
+    content = config["template"].format(year=year, payout=payout, oop=oop)
+    
+    return memory.add_episodic(content, config["importance"], year, config["tags"])
+
+
+def _handle_neighbor(memory: CognitiveMemory, data: Dict, year: int) -> Optional[MemoryItem]:
+    """Handle neighbor observation event (year beginning)."""
+    observation_type = data.get("type", "elevated")
+    count = data.get("count", 0)
+    
+    if count == 0:
+        return None
+    
+    config = EVENT_CONFIG["neighbor"].get(observation_type)
+    if not config:
+        return None
+    
+    content = config["template"].format(year=year, count=count)
+    return memory.add_working(content, config["importance"], year, config["tags"])
+
+
+def _handle_policy(memory: CognitiveMemory, data: Dict, year: int) -> Optional[MemoryItem]:
+    """Handle policy change event (effective next year)."""
+    change_type = data.get("type", "subsidy_increase")
+    
+    config = EVENT_CONFIG["policy"].get(change_type)
+    if not config:
+        return None
+    
+    content = config["template"].format(year=year, **data)
+    return memory.add_working(content, config["importance"], year, config["tags"])
+
+
+def _handle_premium(memory: CognitiveMemory, data: Dict, year: int) -> Optional[MemoryItem]:
+    """Handle premium change event."""
+    pct = data.get("pct", 0)
+    
+    if abs(pct) < 0.05:  # Less than 5% change, not memorable
+        return None
+    
+    subtype = "increase" if pct > 0 else "decrease"
+    config = EVENT_CONFIG["premium"][subtype]
+    
+    content = config["template"].format(year=year, pct=abs(pct))
+    return memory.add_working(content, config["importance"], year, config["tags"])
 
 
 # =============================================================================
-# COMBINED: YEAR-END MEMORY UPDATE
+# CONVENIENCE: YEAR-END UPDATE
 # =============================================================================
 
-def update_memory_after_year(
+def add_year_end_memories(
     memory: CognitiveMemory,
     year: int,
     decision: str,
-    decision_context: Optional[Dict] = None,
     flood_occurred: bool = False,
     damage: float = 0.0,
     claim_filed: bool = False,
     claim_approved: bool = False,
     payout: float = 0.0,
-    out_of_pocket: float = 0.0
+    oop: float = 0.0
 ) -> Dict[str, Optional[MemoryItem]]:
     """
-    Update all memories at year end.
-    
-    This is the main function to call from run_experiment.py.
-    
-    Returns:
-        Dict with keys: 'decision', 'flood', 'claim', 'oop'
+    Convenience function for year-end memory updates.
     """
     results = {}
     
-    # 1. Decision memory
-    results['decision'] = update_memory_from_skill(
-        memory, decision, year, decision_context
-    )
+    results['decision'] = add_memory(memory, "decision", 
+        {"skill_id": decision}, year)
     
-    # 2. Flood memory
-    results['flood'] = update_memory_from_flood(
-        memory, flood_occurred, damage, year
-    )
+    if flood_occurred or damage > 0:
+        results['flood'] = add_memory(memory, "flood",
+            {"occurred": flood_occurred, "damage": damage}, year)
     
-    # 3. Claim memory
     if claim_filed:
-        results['claim'] = update_memory_from_claim(
-            memory, claim_filed, claim_approved, payout, damage, out_of_pocket, year
-        )
-    else:
-        results['claim'] = None
-    
-    # 4. OOP memory (only if not already covered by claim memory)
-    if not claim_filed and out_of_pocket > 5000:
-        results['oop'] = update_memory_from_oop(memory, out_of_pocket, year)
-    else:
-        results['oop'] = None
+        results['claim'] = add_memory(memory, "claim", {
+            "filed": True,
+            "approved": claim_approved,
+            "payout": payout,
+            "oop": oop,
+            "damage": damage
+        }, year)
     
     return results

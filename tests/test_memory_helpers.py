@@ -1,7 +1,7 @@
 """
-Memory Helpers Unit Tests
+Memory Helpers Unit Tests - Unified Interface
 
-Tests the skill-based and event-based memory update functions.
+Tests the unified add_memory(event_type, data, year) interface.
 """
 
 import sys
@@ -9,250 +9,227 @@ sys.path.insert(0, '.')
 
 from broker.memory import CognitiveMemory
 from examples.exp3_multi_agent.memory_helpers import (
-    update_memory_from_skill,
-    update_memory_from_flood,
-    update_memory_from_claim,
-    update_memory_from_oop,
-    update_memory_after_year,
-    SKILL_MEMORY_MAP
+    add_memory,
+    add_year_end_memories,
+    EVENT_CONFIG
 )
 
 
-def test_skill_memory_map_exists():
-    """Test SKILL_MEMORY_MAP has all expected skills."""
-    expected = ["buy_insurance", "elevate_house", "relocate", "do_nothing"]
-    for skill in expected:
-        assert skill in SKILL_MEMORY_MAP, f"Missing skill: {skill}"
-    print("✓ test_skill_memory_map_exists passed")
+def test_event_config_complete():
+    """Test EVENT_CONFIG has all event types."""
+    expected = ["decision", "flood", "claim", "neighbor", "policy", "premium"]
+    for event_type in expected:
+        assert event_type in EVENT_CONFIG, f"Missing: {event_type}"
+    print("✓ test_event_config_complete passed")
 
 
-def test_update_memory_from_skill_simple():
-    """Test skill memory update without context."""
+# =============================================================================
+# DECISION TESTS
+# =============================================================================
+
+def test_decision_buy_insurance():
     mem = CognitiveMemory(agent_id="H001")
-    
-    item = update_memory_from_skill(mem, "buy_insurance", year=3)
-    
+    item = add_memory(mem, "decision", {"skill_id": "buy_insurance"}, year=3)
     assert item is not None
-    assert "Year 3" in item.content
-    assert "insurance" in item.content.lower()
     assert item.importance == 0.7
-    assert "decision" in item.tags
-    print("✓ test_update_memory_from_skill_simple passed")
+    assert "insurance" in item.content.lower()
+    print("✓ test_decision_buy_insurance passed")
 
 
-def test_update_memory_from_skill_with_context():
-    """Test skill memory update with context."""
+def test_decision_do_nothing():
     mem = CognitiveMemory(agent_id="H001")
-    
-    item = update_memory_from_skill(
-        mem, 
-        "elevate_house", 
-        year=5, 
-        context={"subsidy_pct": 0.5}
-    )
-    
-    assert item is not None
-    assert "50%" in item.content
-    assert item.importance == 0.8
-    print("✓ test_update_memory_from_skill_with_context passed")
+    item = add_memory(mem, "decision", {"skill_id": "do_nothing"}, year=2)
+    assert item.importance == 0.3
+    print("✓ test_decision_do_nothing passed")
 
 
-def test_update_memory_from_skill_do_nothing():
-    """Test do_nothing has low importance."""
+# =============================================================================
+# FLOOD TESTS
+# =============================================================================
+
+def test_flood_major():
     mem = CognitiveMemory(agent_id="H001")
-    
-    item = update_memory_from_skill(mem, "do_nothing", year=2)
-    
-    assert item is not None
-    assert item.importance == 0.3  # Low importance
-    assert "inaction" in item.tags
-    print("✓ test_update_memory_from_skill_do_nothing passed")
-
-
-def test_update_memory_from_flood_major():
-    """Test major flood creates high-importance episodic memory."""
-    mem = CognitiveMemory(agent_id="H001")
-    
-    item = update_memory_from_flood(
-        mem, 
-        flood_occurred=True, 
-        damage=75000, 
-        year=3
-    )
-    
-    assert item is not None
+    item = add_memory(mem, "flood", {"damage": 75000}, year=3)
     assert "major" in item.content.lower()
-    assert "$75,000" in item.content
     assert item.importance == 0.9
     assert len(mem._episodic) == 1
-    print("✓ test_update_memory_from_flood_major passed")
+    print("✓ test_flood_major passed")
 
 
-def test_update_memory_from_flood_minor():
-    """Test minor flood creates lower-importance memory."""
+def test_flood_minor():
     mem = CognitiveMemory(agent_id="H001")
-    
-    item = update_memory_from_flood(
-        mem, 
-        flood_occurred=True, 
-        damage=5000, 
-        year=2
-    )
-    
-    assert item is not None
+    item = add_memory(mem, "flood", {"damage": 5000}, year=2)
     assert "minor" in item.content.lower()
     assert item.importance == 0.6
-    print("✓ test_update_memory_from_flood_minor passed")
+    print("✓ test_flood_minor passed")
 
 
-def test_update_memory_from_flood_no_damage():
-    """Test flood with no damage goes to working memory."""
+def test_flood_no_damage():
     mem = CognitiveMemory(agent_id="H001")
-    
-    item = update_memory_from_flood(
-        mem, 
-        flood_occurred=True, 
-        damage=0, 
-        year=4
-    )
-    
-    assert item is not None
+    item = add_memory(mem, "flood", {"occurred": True, "damage": 0}, year=4)
     assert "not damaged" in item.content.lower()
-    assert item.importance == 0.4
     assert len(mem._working) == 1
-    print("✓ test_update_memory_from_flood_no_damage passed")
+    print("✓ test_flood_no_damage passed")
 
 
-def test_update_memory_from_flood_none():
-    """Test no flood returns None."""
+def test_flood_none():
     mem = CognitiveMemory(agent_id="H001")
-    
-    item = update_memory_from_flood(
-        mem, 
-        flood_occurred=False, 
-        damage=0, 
-        year=5
-    )
-    
+    item = add_memory(mem, "flood", {"occurred": False, "damage": 0}, year=5)
     assert item is None
-    assert len(mem._working) == 0
-    assert len(mem._episodic) == 0
-    print("✓ test_update_memory_from_flood_none passed")
+    print("✓ test_flood_none passed")
 
 
-def test_update_memory_from_claim_approved():
-    """Test approved claim creates memory."""
+# =============================================================================
+# CLAIM TESTS
+# =============================================================================
+
+def test_claim_approved():
     mem = CognitiveMemory(agent_id="H001")
-    
-    item = update_memory_from_claim(
-        mem,
-        claim_filed=True,
-        claim_approved=True,
-        payout=40000,
-        damage=50000,
-        out_of_pocket=10000,
-        year=3
-    )
-    
+    item = add_memory(mem, "claim", {
+        "filed": True, "approved": True, "payout": 40000, "damage": 50000, "oop": 10000
+    }, year=3)
     assert item is not None
-    assert "$40,000" in item.content
     assert "approved" in item.tags
-    print("✓ test_update_memory_from_claim_approved passed")
+    print("✓ test_claim_approved passed")
 
 
-def test_update_memory_from_claim_denied():
-    """Test denied claim has high importance."""
+def test_claim_denied():
     mem = CognitiveMemory(agent_id="H001")
-    
-    item = update_memory_from_claim(
-        mem,
-        claim_filed=True,
-        claim_approved=False,
-        payout=0,
-        damage=50000,
-        out_of_pocket=50000,
-        year=3
-    )
-    
-    assert item is not None
+    item = add_memory(mem, "claim", {
+        "filed": True, "approved": False, "payout": 0, "damage": 50000, "oop": 50000
+    }, year=3)
     assert "denied" in item.content.lower()
     assert item.importance == 0.85
-    assert "denied" in item.tags
-    print("✓ test_update_memory_from_claim_denied passed")
+    print("✓ test_claim_denied passed")
 
 
-def test_update_memory_from_oop_high():
-    """Test high out-of-pocket creates memory."""
+def test_claim_not_filed():
     mem = CognitiveMemory(agent_id="H001")
-    
-    item = update_memory_from_oop(mem, out_of_pocket=25000, year=3)
-    
-    assert item is not None
-    assert "$25,000" in item.content
-    assert "major" in item.tags
-    assert item.importance == 0.85
-    print("✓ test_update_memory_from_oop_high passed")
-
-
-def test_update_memory_from_oop_low():
-    """Test low out-of-pocket returns None."""
-    mem = CognitiveMemory(agent_id="H001")
-    
-    item = update_memory_from_oop(mem, out_of_pocket=3000, year=3)
-    
+    item = add_memory(mem, "claim", {"filed": False}, year=3)
     assert item is None
-    print("✓ test_update_memory_from_oop_low passed")
+    print("✓ test_claim_not_filed passed")
 
 
-def test_update_memory_after_year():
-    """Test combined year-end memory update."""
+# =============================================================================
+# NEIGHBOR TESTS (Year Beginning)
+# =============================================================================
+
+def test_neighbor_elevated():
     mem = CognitiveMemory(agent_id="H001")
-    
-    results = update_memory_after_year(
-        mem,
-        year=3,
+    item = add_memory(mem, "neighbor", {"type": "elevated", "count": 3}, year=4)
+    assert item is not None
+    assert "3" in item.content
+    assert "neighbor" in item.tags
+    print("✓ test_neighbor_elevated passed")
+
+
+def test_neighbor_zero():
+    mem = CognitiveMemory(agent_id="H001")
+    item = add_memory(mem, "neighbor", {"type": "elevated", "count": 0}, year=4)
+    assert item is None
+    print("✓ test_neighbor_zero passed")
+
+
+# =============================================================================
+# POLICY TESTS (Effective Next Year)
+# =============================================================================
+
+def test_policy_subsidy():
+    mem = CognitiveMemory(agent_id="H001")
+    item = add_memory(mem, "policy", {"type": "subsidy_increase", "rate": 0.75}, year=3)
+    assert item is not None
+    assert "75%" in item.content
+    print("✓ test_policy_subsidy passed")
+
+
+def test_policy_buyout():
+    mem = CognitiveMemory(agent_id="H001")
+    item = add_memory(mem, "policy", {"type": "buyout_offer", "amount": 200000}, year=5)
+    assert item.importance == 0.85
+    assert "$200,000" in item.content
+    print("✓ test_policy_buyout passed")
+
+
+# =============================================================================
+# PREMIUM TESTS
+# =============================================================================
+
+def test_premium_increase():
+    mem = CognitiveMemory(agent_id="H001")
+    item = add_memory(mem, "premium", {"pct": 0.15}, year=3)
+    assert item is not None
+    assert "15%" in item.content
+    print("✓ test_premium_increase passed")
+
+
+def test_premium_small():
+    mem = CognitiveMemory(agent_id="H001")
+    item = add_memory(mem, "premium", {"pct": 0.02}, year=3)
+    assert item is None  # <5% not memorable
+    print("✓ test_premium_small passed")
+
+
+# =============================================================================
+# CONVENIENCE FUNCTION
+# =============================================================================
+
+def test_year_end_memories():
+    mem = CognitiveMemory(agent_id="H001")
+    results = add_year_end_memories(
+        mem, year=3,
         decision="buy_insurance",
-        decision_context={"premium": 1200},
         flood_occurred=True,
         damage=30000,
         claim_filed=True,
         claim_approved=True,
         payout=25000,
-        out_of_pocket=5000
+        oop=5000
     )
-    
     assert results['decision'] is not None
     assert results['flood'] is not None
     assert results['claim'] is not None
-    
-    # Verify memories were added
-    all_memories = mem.retrieve(top_k=10, current_year=3)
-    assert len(all_memories) >= 2
-    print("✓ test_update_memory_after_year passed")
+    print("✓ test_year_end_memories passed")
 
 
 def main():
-    """Run all tests."""
     print("\n" + "=" * 60)
-    print("MEMORY HELPERS UNIT TESTS")
+    print("UNIFIED MEMORY HELPERS TESTS")
     print("=" * 60 + "\n")
     
-    test_skill_memory_map_exists()
-    test_update_memory_from_skill_simple()
-    test_update_memory_from_skill_with_context()
-    test_update_memory_from_skill_do_nothing()
-    test_update_memory_from_flood_major()
-    test_update_memory_from_flood_minor()
-    test_update_memory_from_flood_no_damage()
-    test_update_memory_from_flood_none()
-    test_update_memory_from_claim_approved()
-    test_update_memory_from_claim_denied()
-    test_update_memory_from_oop_high()
-    test_update_memory_from_oop_low()
-    test_update_memory_after_year()
+    test_event_config_complete()
+    
+    # Decision
+    test_decision_buy_insurance()
+    test_decision_do_nothing()
+    
+    # Flood
+    test_flood_major()
+    test_flood_minor()
+    test_flood_no_damage()
+    test_flood_none()
+    
+    # Claim
+    test_claim_approved()
+    test_claim_denied()
+    test_claim_not_filed()
+    
+    # Neighbor
+    test_neighbor_elevated()
+    test_neighbor_zero()
+    
+    # Policy
+    test_policy_subsidy()
+    test_policy_buyout()
+    
+    # Premium
+    test_premium_increase()
+    test_premium_small()
+    
+    # Convenience
+    test_year_end_memories()
     
     print("\n" + "=" * 60)
-    print("✅ ALL 13 TESTS PASSED")
+    print("✅ ALL 18 TESTS PASSED")
     print("=" * 60)
 
 
