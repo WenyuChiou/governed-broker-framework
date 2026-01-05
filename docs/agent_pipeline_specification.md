@@ -419,240 +419,440 @@ def annual_reset(households: List[HouseholdAgent]):
 
 ---
 
-## 7. Environment Modules
+## 7. Environment Modules (Disaster Risk Framework)
 
-### 7.1 Module Overview
+### 7.1 Module Order: Hazard → Exposure → Vulnerability → Finance
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    ENVIRONMENT MODULES                      │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│   ┌───────────────────────────────────────────────────┐    │
-│   │  Module 1: Flood Event Generator                 │    │
-│   │  - Probabilistic flood occurrence               │    │
-│   │  - Flood severity (depth/extent)                │    │
-│   └───────────────────────────────────────────────────┘    │
-│                          │                                  │
-│                          ▼                                  │
-│   ┌───────────────────────────────────────────────────┐    │
-│   │  Module 2: Damage Calculator                     │    │
-│   │  - Physical damage based on flood + state       │    │
-│   │  - Elevated = reduced damage                    │    │
-│   └───────────────────────────────────────────────────┘    │
-│                          │                                  │
-│                          ▼                                  │
-│   ┌───────────────────────────────────────────────────┐    │
-│   │  Module 3: Insurance Claims (Future)             │    │
-│   │  - Claim processing                             │    │
-│   │  - Payout calculation                           │    │
-│   └───────────────────────────────────────────────────┘    │
-│                          │                                  │
-│                          ▼                                  │
-│   ┌───────────────────────────────────────────────────┐    │
-│   │  Module 4: Buyout Program (Future)               │    │
-│   │  - Eligibility check                            │    │
-│   │  - Approval/denial                              │    │
-│   └───────────────────────────────────────────────────┘    │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
-```
-
-### 7.2 Module 1: Flood Event Generator
-
-```python
-class FloodEventGenerator:
-    """Generate flood events probabilistically."""
-    
-    def __init__(self, config: FloodConfig):
-        self.annual_probability = config.annual_probability  # e.g., 0.3
-        self.severity_distribution = config.severity_dist    # Normal(μ, σ)
-    
-    def generate(self, year: int, seed: int = None) -> FloodEvent:
-        """Generate flood event for the year."""
-        if random.random() < self.annual_probability:
-            severity = self.severity_distribution.sample()
-            return FloodEvent(
-                year=year,
-                occurred=True,
-                severity=severity,  # 0.0 - 1.0
-                affected_regions=["NJ", "NY"]
-            )
-        return FloodEvent(year=year, occurred=False)
-```
-
-### 7.3 Module 2: Damage Calculator
-
-```python
-class DamageCalculator:
-    """Calculate damage based on flood event and agent state."""
-    
-    def calculate(self, agent: HouseholdAgent, flood: FloodEvent) -> float:
-        """
-        Calculate damage for a household.
-        
-        Factors:
-        - Flood severity
-        - Elevated status (reduces damage)
-        - Property value
-        - MG status (may affect exposure)
-        """
-        if not flood.occurred or agent.state.relocated:
-            return 0.0
-        
-        base_damage = agent.state.property_value * flood.severity
-        
-        # Elevation reduces damage by 80%
-        if agent.state.elevated:
-            base_damage *= 0.2
-        
-        # MG may have more vulnerable housing
-        if agent.state.mg:
-            base_damage *= 1.2  # 20% more vulnerable
-        
-        return min(base_damage, agent.state.property_value)
-```
-
-### 7.4 Environment → Agent Observation
-
-```python
-def prepare_agent_context(
-    agent: HouseholdAgent,
-    env: Environment,
-    year: int
-) -> Dict:
-    """Prepare observable context for agent."""
-    
-    return {
-        "year": year,
-        "flood_occurred": env.last_flood.occurred if env.last_flood else False,
-        "subsidy_rate": env.government.state.subsidy_rate,
-        "premium_rate": env.insurance.state.premium_rate,
-        
-        # Household can ONLY see their own damage
-        "own_damage": agent.state.cumulative_damage,
-        
-        # Limited neighbor observation (optional)
-        "neighbor_adaptations": count_neighbor_adaptations(agent, env)
-    }
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                      DISASTER RISK FRAMEWORK                                │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│   ┌─────────────────────────────────────────────────────────────────────┐  │
+│   │  1. HAZARD                                                          │  │
+│   │     - Flood event occurrence (probabilistic)                        │  │
+│   │     - Flood characteristics (depth, extent, duration)               │  │
+│   │     OUTPUT: FloodEvent                                              │  │
+│   └─────────────────────────────────────────────────────────────────────┘  │
+│                                    │                                        │
+│                                    ▼                                        │
+│   ┌─────────────────────────────────────────────────────────────────────┐  │
+│   │  2. EXPOSURE                                                        │  │
+│   │     - Which agents are in flood zone                                │  │
+│   │     - Property value at risk                                        │  │
+│   │     - Exposure type (building, contents, infrastructure)            │  │
+│   │     OUTPUT: ExposureProfile per agent                               │  │
+│   └─────────────────────────────────────────────────────────────────────┘  │
+│                                    │                                        │
+│                                    ▼                                        │
+│   ┌─────────────────────────────────────────────────────────────────────┐  │
+│   │  3. VULNERABILITY                                                   │  │
+│   │     - Building characteristics (elevated, type, age)                │  │
+│   │     - Social vulnerability (MG status)                              │  │
+│   │     - Damage functions: hazard × exposure → physical damage         │  │
+│   │     OUTPUT: DamageEstimate per agent                                │  │
+│   └─────────────────────────────────────────────────────────────────────┘  │
+│                                    │                                        │
+│                                    ▼                                        │
+│   ┌─────────────────────────────────────────────────────────────────────┐  │
+│   │  4. FINANCE                                                         │  │
+│   │     - Insurance claims processing                                   │  │
+│   │     - Out-of-pocket costs                                           │  │
+│   │     - Buyout program evaluation                                     │  │
+│   │     - Government recovery assistance                                │  │
+│   │     OUTPUT: FinancialOutcome per agent                              │  │
+│   └─────────────────────────────────────────────────────────────────────┘  │
+│                                                                             │
+│   Risk = Hazard × Exposure × Vulnerability                                  │
+│   Loss = Risk → Finance (mediated by insurance/government)                  │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 8. Future: Disaster Model Modules
+### 7.2 Module 1: HAZARD
 
-> **Note:** 以下模組待後續實作
-
-### 8.1 Module 3: Insurance Claims Processor
+**Purpose:** Generate flood events with physical characteristics
 
 ```python
-class InsuranceClaimsProcessor:
-    """Process insurance claims after flood event."""
+@dataclass
+class FloodEvent:
+    year: int
+    occurred: bool
     
-    def process_claim(
+    # Physical characteristics
+    depth_ft: float = 0.0          # Flood depth in feet
+    extent: str = "none"           # "none", "minor", "moderate", "major"
+    duration_days: int = 0         # Duration of flooding
+    affected_regions: List[str] = field(default_factory=list)
+    
+    # Derived severity (0.0 - 1.0)
+    @property
+    def severity(self) -> float:
+        if not self.occurred:
+            return 0.0
+        # Depth-based severity: 1ft=0.2, 3ft=0.5, 6ft=0.8, 10ft+=1.0
+        return min(1.0, self.depth_ft / 10.0)
+
+
+class HazardModule:
+    """Generate flood hazard events."""
+    
+    def __init__(self, config: HazardConfig):
+        self.annual_prob = config.annual_probability  # e.g., 0.3
+        self.depth_dist = config.depth_distribution   # e.g., Lognormal(2, 1)
+    
+    def generate(self, year: int) -> FloodEvent:
+        """Generate flood event for the year."""
+        if random.random() >= self.annual_prob:
+            return FloodEvent(year=year, occurred=False)
+        
+        depth = max(0.5, self.depth_dist.sample())  # Min 0.5 ft
+        
+        return FloodEvent(
+            year=year,
+            occurred=True,
+            depth_ft=depth,
+            extent=self._classify_extent(depth),
+            duration_days=int(depth * 2),
+            affected_regions=["NJ", "NY"]
+        )
+    
+    def _classify_extent(self, depth: float) -> str:
+        if depth < 1: return "minor"
+        if depth < 3: return "moderate"
+        return "major"
+```
+
+---
+
+### 7.3 Module 2: EXPOSURE
+
+**Purpose:** Determine what is at risk for each agent
+
+```python
+@dataclass
+class ExposureProfile:
+    agent_id: str
+    
+    # Is agent exposed?
+    in_flood_zone: bool = True
+    
+    # Assets at risk
+    building_value: float = 0.0    # Structure value
+    contents_value: float = 0.0    # Belongings value
+    
+    # Exposure type
+    occupancy_type: str = "residential"  # residential, commercial
+    floor_elevation_ft: float = 0.0      # Base floor elevation
+    
+    # Total exposure
+    @property
+    def total_exposure(self) -> float:
+        return self.building_value + self.contents_value
+
+
+class ExposureModule:
+    """Calculate exposure for each agent."""
+    
+    def calculate_exposure(
         self, 
         agent: HouseholdAgent, 
-        damage: float,
-        insurance: InsuranceAgent
-    ) -> ClaimResult:
-        """
-        Process insurance claim.
+        flood: FloodEvent
+    ) -> ExposureProfile:
+        """Determine agent's exposure to flood event."""
         
-        Returns:
-            ClaimResult with:
-            - approved: bool
-            - payout: float
-            - denial_reason: Optional[str]
-        """
-        if not agent.state.has_insurance:
-            return ClaimResult(approved=False, payout=0, denial_reason="No policy")
+        # Check if agent is exposed
+        if agent.state.relocated:
+            return ExposureProfile(agent_id=agent.state.id, in_flood_zone=False)
         
-        # NFIP: Payout capped at policy limit
-        policy_limit = 250_000  # NFIP building limit
-        payout = min(damage, policy_limit)
+        if not flood.occurred:
+            return ExposureProfile(agent_id=agent.state.id, in_flood_zone=False)
         
-        # Deductible
-        deductible = 1_000
-        payout = max(0, payout - deductible)
+        # Calculate floor elevation (elevated houses are higher)
+        floor_elevation = 0.0
+        if agent.state.elevated:
+            floor_elevation = 3.0  # Elevated 3 feet above base
         
-        return ClaimResult(
-            approved=True,
-            payout=payout,
-            out_of_pocket=damage - payout
+        return ExposureProfile(
+            agent_id=agent.state.id,
+            in_flood_zone=True,
+            building_value=agent.state.property_value,
+            contents_value=agent.state.property_value * 0.3,  # Contents ~30% of building
+            floor_elevation_ft=floor_elevation
         )
 ```
-
-**Household 可見：**
-- `claim_approved: bool`
-- `claim_payout: float`
-- `out_of_pocket: float`
-
-### 8.2 Module 4: Buyout Program
-
-```python
-class BuyoutProgram:
-    """Government buyout/acquisition program."""
-    
-    def check_eligibility(
-        self, 
-        agent: HouseholdAgent,
-        government: GovernmentAgent
-    ) -> BuyoutEligibility:
-        """
-        Check if agent is eligible for buyout.
-        
-        Eligibility factors:
-        - Repetitive loss (2+ floods)
-        - Severe repetitive loss
-        - Government budget available
-        - Priority group
-        """
-        # Repetitive loss check
-        is_repetitive = agent.state.flood_count >= 2
-        
-        # Priority check
-        priority_match = (
-            government.state.priority_group == "ALL" or
-            (government.state.priority_group == "MG" and agent.state.mg)
-        )
-        
-        # Budget check
-        budget_available = government.state.buyout_budget > 0
-        
-        return BuyoutEligibility(
-            eligible=is_repetitive and priority_match and budget_available,
-            reason=self._get_reason(...)
-        )
-    
-    def process_application(
-        self, 
-        agent: HouseholdAgent
-    ) -> BuyoutResult:
-        """
-        Process buyout application.
-        
-        Returns:
-            - approved: bool
-            - offer_amount: float (pre-flood fair market value)
-            - processing_time_years: int
-        """
-        pass  # Future implementation
-```
-
-**Household 可見：**
-- `buyout_eligible: bool`
-- `buyout_offer: Optional[float]`
-
-### 8.3 Module Integration Order
-
-1. ✅ **Flood Event Generator** (已有)
-2. ✅ **Damage Calculator** (已有)
-3. 🔜 **Insurance Claims** (next)
-4. 📋 **Buyout Program** (later)
 
 ---
 
-## 9. Insurance Type Configuration
+### 7.4 Module 3: VULNERABILITY
+
+**Purpose:** Convert hazard + exposure into physical damage
+
+```python
+@dataclass
+class DamageEstimate:
+    agent_id: str
+    
+    # Damage amounts
+    building_damage: float = 0.0
+    contents_damage: float = 0.0
+    
+    # Damage factors
+    damage_ratio: float = 0.0      # Damage / Value (0.0 - 1.0)
+    depth_above_floor: float = 0.0  # Water depth above first floor
+    
+    @property
+    def total_damage(self) -> float:
+        return self.building_damage + self.contents_damage
+
+
+class VulnerabilityModule:
+    """Calculate damage based on hazard and exposure."""
+    
+    # FEMA depth-damage functions (simplified)
+    DEPTH_DAMAGE_TABLE = {
+        # depth_ft: (building_ratio, contents_ratio)
+        0: (0.0, 0.0),
+        1: (0.15, 0.30),
+        2: (0.25, 0.50),
+        3: (0.35, 0.65),
+        4: (0.45, 0.75),
+        6: (0.55, 0.85),
+        8: (0.65, 0.90),
+        10: (0.75, 0.95),
+    }
+    
+    def calculate_damage(
+        self,
+        flood: FloodEvent,
+        exposure: ExposureProfile,
+        agent: HouseholdAgent
+    ) -> DamageEstimate:
+        """Calculate physical damage."""
+        
+        if not exposure.in_flood_zone:
+            return DamageEstimate(agent_id=exposure.agent_id)
+        
+        # Calculate depth above floor
+        depth_above_floor = max(0, flood.depth_ft - exposure.floor_elevation_ft)
+        
+        if depth_above_floor <= 0:
+            return DamageEstimate(agent_id=exposure.agent_id)
+        
+        # Look up damage ratios
+        bldg_ratio, contents_ratio = self._lookup_damage_ratio(depth_above_floor)
+        
+        # Apply MG vulnerability factor (housing quality)
+        if agent.state.mg:
+            bldg_ratio *= 1.2  # 20% higher vulnerability
+        
+        # Calculate damages
+        building_damage = exposure.building_value * min(1.0, bldg_ratio)
+        contents_damage = exposure.contents_value * min(1.0, contents_ratio)
+        
+        return DamageEstimate(
+            agent_id=exposure.agent_id,
+            building_damage=building_damage,
+            contents_damage=contents_damage,
+            damage_ratio=bldg_ratio,
+            depth_above_floor=depth_above_floor
+        )
+    
+    def _lookup_damage_ratio(self, depth: float) -> Tuple[float, float]:
+        """Linear interpolation of depth-damage function."""
+        depths = sorted(self.DEPTH_DAMAGE_TABLE.keys())
+        for i, d in enumerate(depths):
+            if depth <= d:
+                if i == 0:
+                    return self.DEPTH_DAMAGE_TABLE[d]
+                prev_d = depths[i-1]
+                ratio = (depth - prev_d) / (d - prev_d)
+                prev_val = self.DEPTH_DAMAGE_TABLE[prev_d]
+                curr_val = self.DEPTH_DAMAGE_TABLE[d]
+                return (
+                    prev_val[0] + ratio * (curr_val[0] - prev_val[0]),
+                    prev_val[1] + ratio * (curr_val[1] - prev_val[1])
+                )
+        return self.DEPTH_DAMAGE_TABLE[depths[-1]]
+```
+
+---
+
+### 7.5 Module 4: FINANCE
+
+**Purpose:** Process financial outcomes (insurance, out-of-pocket, buyout)
+
+```python
+@dataclass
+class FinancialOutcome:
+    agent_id: str
+    year: int
+    
+    # Damage (from vulnerability module)
+    total_damage: float = 0.0
+    
+    # Insurance
+    has_insurance: bool = False
+    claim_filed: bool = False
+    claim_approved: bool = False
+    insurance_payout: float = 0.0
+    deductible_paid: float = 0.0
+    
+    # Out-of-pocket
+    out_of_pocket: float = 0.0
+    
+    # Buyout (if applicable)
+    buyout_eligible: bool = False
+    buyout_offer: Optional[float] = None
+    
+    # Government assistance
+    fema_ia_received: float = 0.0  # FEMA Individual Assistance
+
+
+class FinanceModule:
+    """Process financial outcomes for damaged households."""
+    
+    NFIP_BUILDING_LIMIT = 250_000
+    NFIP_CONTENTS_LIMIT = 100_000
+    DEFAULT_DEDUCTIBLE = 1_000
+    
+    def process(
+        self,
+        agent: HouseholdAgent,
+        damage: DamageEstimate,
+        insurance: InsuranceAgent
+    ) -> FinancialOutcome:
+        """Process financial outcome for agent."""
+        
+        outcome = FinancialOutcome(
+            agent_id=agent.state.id,
+            year=damage.year if hasattr(damage, 'year') else 0,
+            total_damage=damage.total_damage,
+            has_insurance=agent.state.has_insurance
+        )
+        
+        if damage.total_damage <= 0:
+            return outcome
+        
+        # Process insurance claim
+        if agent.state.has_insurance:
+            outcome = self._process_claim(outcome, damage, insurance)
+        
+        # Calculate out-of-pocket
+        outcome.out_of_pocket = max(0, 
+            outcome.total_damage - outcome.insurance_payout
+        )
+        
+        # Check buyout eligibility (future)
+        # outcome = self._check_buyout(outcome, agent, government)
+        
+        return outcome
+    
+    def _process_claim(
+        self,
+        outcome: FinancialOutcome,
+        damage: DamageEstimate,
+        insurance: InsuranceAgent
+    ) -> FinancialOutcome:
+        """Process insurance claim."""
+        outcome.claim_filed = True
+        
+        # NFIP limits
+        building_payout = min(damage.building_damage, self.NFIP_BUILDING_LIMIT)
+        contents_payout = min(damage.contents_damage, self.NFIP_CONTENTS_LIMIT)
+        
+        gross_payout = building_payout + contents_payout
+        
+        # Apply deductible
+        outcome.deductible_paid = min(self.DEFAULT_DEDUCTIBLE, gross_payout)
+        outcome.insurance_payout = max(0, gross_payout - outcome.deductible_paid)
+        outcome.claim_approved = True
+        
+        # Update insurance metrics
+        insurance.state.total_claims += 1
+        insurance.state.total_payout += outcome.insurance_payout
+        
+        return outcome
+```
+
+---
+
+### 7.6 Module Integration Flow
+
+```python
+def process_flood_year(
+    year: int,
+    households: List[HouseholdAgent],
+    insurance: InsuranceAgent,
+    government: GovernmentAgent
+) -> Dict[str, FinancialOutcome]:
+    """Process a flood year through all modules."""
+    
+    # 1. HAZARD
+    hazard = HazardModule(config)
+    flood = hazard.generate(year)
+    
+    if not flood.occurred:
+        return {}  # No flood, no processing
+    
+    outcomes = {}
+    
+    # 2-4. For each agent: Exposure → Vulnerability → Finance
+    exposure_mod = ExposureModule()
+    vuln_mod = VulnerabilityModule()
+    finance_mod = FinanceModule()
+    
+    for agent in households:
+        # 2. EXPOSURE
+        exposure = exposure_mod.calculate_exposure(agent, flood)
+        
+        # 3. VULNERABILITY
+        damage = vuln_mod.calculate_damage(flood, exposure, agent)
+        
+        # 4. FINANCE
+        outcome = finance_mod.process(agent, damage, insurance)
+        
+        # Update agent state
+        agent.state.cumulative_damage += damage.total_damage
+        agent.state.cumulative_oop += outcome.out_of_pocket
+        
+        # Update memory
+        if damage.total_damage > 0:
+            agent.memory.update_after_flood(damage.total_damage, year)
+        
+        outcomes[agent.state.id] = outcome
+    
+    return outcomes
+```
+
+---
+
+### 7.7 Agent Observable Outputs
+
+**What Household agents CAN see (after flood):**
+
+| Field | Description | Source |
+|-------|-------------|--------|
+| `flood_occurred` | Was there a flood? | Hazard |
+| `my_damage` | My total damage | Vulnerability |
+| `claim_approved` | Was my claim approved? | Finance |
+| `insurance_payout` | How much did I receive? | Finance |
+| `out_of_pocket` | How much do I pay? | Finance |
+| `buyout_eligible` | Am I eligible for buyout? | Finance (future) |
+
+**What Household agents CANNOT see:**
+
+| Field | Description | Reason |
+|-------|-------------|--------|
+| `neighbor_damage` | Others' damage | Information asymmetry |
+| `total_claims` | Number of claims filed | Private |
+| `insurance_reserves` | Insurance finances | Private |
+| `government_budget` | Remaining budget | Not public |
+---
+
+## 8. Insurance Type Configuration
 
 ```python
 @dataclass
@@ -676,5 +876,46 @@ class InsuranceAgentState:
     premium_rate: float = 0.05
     loss_ratio: float = 0.0
     total_policies: int = 0
+    total_claims: int = 0
+    total_payout: float = 0.0
     risk_pool: float = 1_000_000
 ```
+
+---
+
+## 9. Future: Buyout Program (Relocation)
+
+> **Note:** 待後續實作
+
+```python
+class BuyoutProgram:
+    """Government buyout/acquisition program."""
+    
+    def check_eligibility(
+        self, 
+        agent: HouseholdAgent,
+        government: GovernmentAgent
+    ) -> BuyoutEligibility:
+        """
+        Eligibility factors:
+        - Repetitive loss (2+ floods)
+        - Severe repetitive loss
+        - Government budget available
+        - Priority group
+        """
+        is_repetitive = agent.state.flood_count >= 2
+        priority_match = (
+            government.state.priority_group == "ALL" or
+            (government.state.priority_group == "MG" and agent.state.mg)
+        )
+        budget_available = government.state.buyout_budget > 0
+        
+        return BuyoutEligibility(
+            eligible=is_repetitive and priority_match and budget_available,
+            reason=...
+        )
+```
+
+**Household 可見：**
+- `buyout_eligible: bool`
+- `buyout_offer: Optional[float]`
