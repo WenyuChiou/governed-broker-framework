@@ -371,8 +371,350 @@ def test_memory_serialization():
 
 ---
 
-## 8. Implementation Checklist
+## 8. Retrieval as Skill (Tool Invocation)
 
+### 8.1 Skill Registry Entry
+
+```yaml
+# skill_registry.yaml
+memory_tools:
+  - skill_id: retrieve_memory
+    description: "Retrieve relevant past experiences for decision making"
+    eligible_agent_types: ["*"]  # All agents can use
+    preconditions: []
+    institutional_constraints:
+      max_retrieve: 5
+    allowed_state_changes: []  # Read-only
+    implementation_mapping: "memory.retrieve"
+```
+
+### 8.2 Retrieval Invocation
+
+```python
+# During agent reasoning phase
+def prepare_context(agent: HouseholdAgent, year: int) -> Dict:
+    """Invoke retrieval as a tool call."""
+    
+    # Tool: retrieve_memory
+    retrieved_memories = agent.memory.retrieve(top_k=5, current_year=year)
+    
+    return {
+        "state": agent.state,
+        "retrieved_memories": retrieved_memories,  # Tool output
+        "year": year
+    }
+```
+
+### 8.3 Retrieval Audit Trail
+
+```json
+{
+  "tool_invocation": {
+    "tool_id": "retrieve_memory",
+    "parameters": {
+      "top_k": 5,
+      "current_year": 3
+    },
+    "result": [
+      "Year 2: A flood occurred causing $50,000 in damages",
+      "Year 2: I decided to buy_insurance"
+    ],
+    "result_count": 2
+  }
+}
+```
+
+---
+
+## 9. Memory in Audit Logs
+
+### 9.1 Audit Trace Structure
+
+```python
+# audit_writer.py
+def write_household_trace(
+    self,
+    output: HouseholdOutput,
+    state: Dict,
+    context: Dict,
+    memory: CognitiveMemory  # NEW: Include memory
+):
+    trace = {
+        "timestamp": datetime.now().isoformat(),
+        "year": output.year,
+        "agent_id": output.agent_id,
+        
+        # State
+        "state_before": state,
+        
+        # Memory (NEW)
+        "memory": {
+            "retrieved": memory.retrieve(top_k=5, current_year=output.year),
+            "working_count": len(memory._working),
+            "episodic_count": len(memory._episodic),
+            "working_items": [
+                {"content": m.content, "importance": m.importance, "year": m.year}
+                for m in memory._working
+            ],
+            "episodic_items": [
+                {"content": m.content, "importance": m.importance, "year": m.year}
+                for m in memory._episodic[:10]  # Limit to 10 for audit
+            ]
+        },
+        
+        # Reasoning
+        "reasoning": {...},
+        
+        # Action
+        "action": {...},
+        
+        # Validation
+        "validation": {...}
+    }
+```
+
+### 9.2 Memory Update Audit
+
+```python
+# After decision, log memory updates
+def log_memory_update(
+    self,
+    agent_id: str,
+    year: int,
+    update_type: str,  # "flood" or "decision"
+    memory_item: MemoryItem
+):
+    update_entry = {
+        "timestamp": datetime.now().isoformat(),
+        "agent_id": agent_id,
+        "year": year,
+        "update_type": update_type,
+        "memory_item": {
+            "content": memory_item.content,
+            "importance": memory_item.importance,
+            "destination": "episodic" if memory_item.importance >= 0.7 else "working",
+            "tags": memory_item.tags
+        }
+    }
+    # Append to memory_updates.jsonl
+```
+
+### 9.3 Year-End Consolidation Audit
+
+```python
+# At year end, log consolidation
+def log_consolidation(
+    self,
+    agent_id: str,
+    year: int,
+    transferred_count: int,
+    transferred_items: List[str]
+):
+    consolidation_entry = {
+        "timestamp": datetime.now().isoformat(),
+        "agent_id": agent_id,
+        "year": year,
+        "consolidation": {
+            "transferred_count": transferred_count,
+            "transferred_items": transferred_items,
+            "working_after": len(memory._working),
+            "episodic_after": len(memory._episodic)
+        }
+    }
+```
+
+---
+
+## 10. Skill-Based Memory Storage
+
+### 10.1 Skill → Memory Mapping
+
+| Skill ID | Memory Update | Importance | Destination |
+|----------|---------------|------------|-------------|
+| `buy_insurance` | "I purchased flood insurance" | 0.7 | Episodic |
+| `elevate_house` | "I elevated my house" | 0.8 | Episodic |
+| `relocate` | "I relocated to a new area" | 0.9 | Episodic |
+| `do_nothing` | "I chose not to take action" | 0.3 | Working |
+
+### 10.2 Implementation
+
+```python
+# After decision execution
+def update_memory_from_skill(
+    memory: CognitiveMemory,
+    skill_id: str,
+    year: int,
+    context: Dict = None
+) -> MemoryItem:
+    """Add memory based on skill executed."""
+    
+    SKILL_MEMORY_MAP = {
+        "buy_insurance": {
+            "template": "Year {year}: I purchased flood insurance (premium: ${premium:.0f})",
+            "importance": 0.7,
+            "tags": ["decision", "insurance"]
+        },
+        "elevate_house": {
+            "template": "Year {year}: I elevated my house with {subsidy_pct:.0%} subsidy",
+            "importance": 0.8,
+            "tags": ["decision", "elevation"]
+        },
+        "relocate": {
+            "template": "Year {year}: I relocated to a safer area",
+            "importance": 0.9,
+            "tags": ["decision", "relocation"]
+        },
+        "do_nothing": {
+            "template": "Year {year}: I chose to wait and not take protective action",
+            "importance": 0.3,
+            "tags": ["decision", "inaction"]
+        }
+    }
+    
+    config = SKILL_MEMORY_MAP.get(skill_id)
+    if not config:
+        return None
+    
+    content = config["template"].format(year=year, **(context or {}))
+    return memory.add_experience(
+        content=content,
+        importance=config["importance"],
+        year=year,
+        tags=config["tags"]
+    )
+```
+
+### 10.3 Environment Event → Memory
+
+```python
+# After flood event
+def update_memory_from_flood(
+    memory: CognitiveMemory,
+    flood: FloodEvent,
+    damage: DamageEstimate,
+    year: int
+) -> MemoryItem:
+    """Add memory based on flood experience."""
+    
+    if damage.total_damage > 0:
+        severity = "major" if damage.total_damage > 50000 else "minor"
+        content = f"Year {year}: A {severity} flood caused ${damage.total_damage:,.0f} in damages"
+        return memory.add_episodic(
+            content=content,
+            importance=0.9 if severity == "major" else 0.6,
+            year=year,
+            tags=["flood", severity]
+        )
+    
+    elif flood.occurred:
+        content = f"Year {year}: A flood occurred but caused no damage to my property"
+        return memory.add_working(
+            content=content,
+            importance=0.4,
+            year=year,
+            tags=["flood", "no_damage"]
+        )
+    
+    return None
+
+# After insurance claim
+def update_memory_from_claim(
+    memory: CognitiveMemory,
+    outcome: FinancialOutcome,
+    year: int
+) -> MemoryItem:
+    """Add memory based on insurance claim experience."""
+    
+    if outcome.claim_filed:
+        if outcome.claim_approved:
+            content = f"Year {year}: Insurance paid ${outcome.insurance_payout:,.0f} for my claim"
+            return memory.add_episodic(
+                content=content,
+                importance=0.7,
+                year=year,
+                tags=["insurance", "claim", "approved"]
+            )
+        else:
+            content = f"Year {year}: My insurance claim was denied"
+            return memory.add_episodic(
+                content=content,
+                importance=0.8,  # Denial is memorable
+                year=year,
+                tags=["insurance", "claim", "denied"]
+            )
+    return None
+```
+
+---
+
+## 11. Complete Audit Trail Example
+
+```json
+{
+  "timestamp": "2026-01-05T04:30:00.000000",
+  "year": 3,
+  "agent_id": "H001",
+  
+  "state_before": {
+    "elevated": false,
+    "has_insurance": true,
+    "cumulative_damage": 50000
+  },
+  
+  "memory": {
+    "retrieved": [
+      "Year 2: A major flood caused $50,000 in damages",
+      "Year 2: I purchased flood insurance (premium: $1,200)"
+    ],
+    "working_count": 3,
+    "episodic_count": 2,
+    "retrieval_scores": [
+      {"content": "Year 2: A major flood...", "score": 0.855},
+      {"content": "Year 2: I purchased...", "score": 0.665}
+    ]
+  },
+  
+  "reasoning": {
+    "constructs": {
+      "TP": {"level": "HIGH", "explanation": "Experienced major damage last year"},
+      "CP": {"level": "MODERATE", "explanation": "Insurance helped but OOP still high"}
+    },
+    "justification": "Given my past flood experience and available subsidy..."
+  },
+  
+  "action": {
+    "decision_skill": "elevate_house",
+    "skill_parameters": {
+      "subsidy_rate": 0.5
+    }
+  },
+  
+  "memory_update": {
+    "type": "skill_execution",
+    "content": "Year 3: I elevated my house with 50% subsidy",
+    "importance": 0.8,
+    "destination": "episodic"
+  },
+  
+  "validation": {
+    "valid": true,
+    "errors": [],
+    "warnings": []
+  },
+  
+  "state_after": {
+    "elevated": true,
+    "has_insurance": true,
+    "cumulative_damage": 50000
+  }
+}
+```
+
+---
+
+## 12. Implementation Checklist
+
+### Memory Core
 - [x] `MemoryItem` dataclass with metadata
 - [x] `CognitiveMemory.add_working()` with FIFO eviction
 - [x] `CognitiveMemory.add_episodic()` with capacity control
@@ -382,6 +724,24 @@ def test_memory_serialization():
 - [x] `update_after_decision()` convenience method
 - [x] `format_for_prompt()` for LLM integration
 - [x] `to_list()` for ContextBuilder compatibility
+
+### Retrieval as Skill
+- [x] Skill Registry entry for `retrieve_memory`
+- [ ] Tool invocation logging in audit
+- [ ] Retrieval parameters in audit trace
+
+### Audit Integration
+- [ ] Memory snapshot in household trace
+- [ ] Memory update logging
+- [ ] Consolidation logging at year-end
+
+### Skill-Based Storage
+- [ ] Skill → Memory mapping configuration
+- [ ] `update_memory_from_skill()` implementation
+- [ ] `update_memory_from_flood()` implementation
+- [ ] `update_memory_from_claim()` implementation
+
+### Future
 - [ ] Memory serialization/deserialization
-- [ ] Tag-based retrieval (future)
-- [ ] Query-based retrieval (future)
+- [ ] Tag-based retrieval
+- [ ] Query-based retrieval
