@@ -3,6 +3,19 @@
 # Agent Types: Household (Owner/Renter), Insurance, Government
 
 # =============================================================================
+# MEMORY/RETRIEVAL TOOL (Available to all agents)
+# =============================================================================
+memory_tools:
+  - skill_id: retrieve_memory
+    description: "Retrieve relevant past experiences and observations for decision making"
+    eligible_agent_types: ["*"]
+    preconditions: []
+    institutional_constraints:
+      max_retrieve: 5  # Maximum memories to retrieve
+    allowed_state_changes: []
+    implementation_mapping: "memory.retrieve"
+
+# =============================================================================
 # HOUSEHOLD SKILLS (Owner)
 # =============================================================================
 household_owner_skills:

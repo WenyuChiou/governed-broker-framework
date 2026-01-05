@@ -73,6 +73,15 @@ class HouseholdValidator:
         # R6: Already relocated → Cannot take any action
         rule_checks["R6_relocated_constraint"] = self._check_r6(output, agent_state, errors)
         
+        # R7: FULL PA → Relocating may be unnecessary
+        rule_checks["R7_pa_relocate"] = self._check_r7_pa_relocate(output, warnings)
+        
+        # R8: PA level should match actual state
+        rule_checks["R8_pa_consistency"] = self._check_r8_pa_consistency(output, agent_state, warnings)
+        
+        # R9: Renter valid actions
+        rule_checks["R9_renter_actions"] = self._check_r9_renter_actions(output, errors)
+        
         return ValidationResult(
             valid=len(errors) == 0,
             errors=errors,
@@ -134,6 +143,43 @@ class HouseholdValidator:
         """R6: Already relocated → Cannot take any action"""
         if state.get("relocated", False) and output.decision_skill != "do_nothing":
             errors.append("R6: Already relocated - cannot take further flood actions")
+            return False
+        return True
+    
+    def _check_r7_pa_relocate(self, output: HouseholdOutput, warnings: List) -> bool:
+        """R7: FULL PA → Relocating may be unnecessary"""
+        if output.pa_level == "FULL" and output.decision_skill == "relocate":
+            warnings.append(
+                "R7: PA=FULL (fully protected) but chose to relocate - "
+                "may be overreacting given existing protections"
+            )
+            return False
+        return True
+    
+    def _check_r8_pa_consistency(self, output: HouseholdOutput, state: Dict, warnings: List) -> bool:
+        """R8: PA level should match actual state"""
+        actual_pa = "NONE"
+        if state.get("elevated") and state.get("has_insurance"):
+            actual_pa = "FULL"
+        elif state.get("elevated") or state.get("has_insurance"):
+            actual_pa = "PARTIAL"
+        
+        if output.pa_level != actual_pa:
+            warnings.append(
+                f"R8: PA={output.pa_level} doesn't match actual state "
+                f"(elevated={state.get('elevated')}, insured={state.get('has_insurance')}) -> expected {actual_pa}"
+            )
+            return False
+        return True
+    
+    def _check_r9_renter_actions(self, output: HouseholdOutput, errors: List) -> bool:
+        """R9: Renter can only: buy_insurance, relocate, do_nothing"""
+        valid_renter_actions = ["buy_insurance", "relocate", "do_nothing"]
+        if output.tenure == "Renter" and output.decision_skill not in valid_renter_actions:
+            errors.append(
+                f"R9: Renter cannot {output.decision_skill} - "
+                "valid actions: buy_insurance, relocate, do_nothing"
+            )
             return False
         return True
 
