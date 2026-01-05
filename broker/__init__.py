@@ -20,6 +20,20 @@ from .skill_broker_engine import SkillBrokerEngine
 from .model_adapter import ModelAdapter, OllamaAdapter, OpenAIAdapter, get_adapter
 
 # =============================================================================
+# Context Building
+# =============================================================================
+from .context_builder import ContextBuilder, SimpleContextBuilder
+
+# =============================================================================
+# Memory and Retrieval Module
+# =============================================================================
+from .memory import (
+    SimpleMemory, CognitiveMemory,
+    MemoryProvider, SimpleRetrieval,
+    MemoryAwareContextBuilder
+)
+
+# =============================================================================
 # V1 Legacy MCP Architecture (DEPRECATED - use broker.legacy for explicit access)
 # =============================================================================
 # For backwards compatibility, we still expose these at package level
@@ -34,8 +48,12 @@ __all__ = [
     "SkillBrokerEngine",
     "ModelAdapter", "OllamaAdapter", "OpenAIAdapter", "get_adapter",
     "ExecutionResult",
+    # Context Building
+    "ContextBuilder", "SimpleContextBuilder",
+    # Memory and Retrieval
+    "SimpleMemory", "CognitiveMemory", "MemoryProvider", "SimpleRetrieval",
+    "MemoryAwareContextBuilder",
     # V1 Legacy (Deprecated)
     "BrokerEngine", "BrokerResult", "DecisionRequest", "ValidationResult",
 ]
 __version__ = "0.2.0"
-
