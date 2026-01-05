@@ -1,10 +1,10 @@
 """
 Output Parsers for Multi-Agent LLM Responses (Exp3)
 
-Simplified parsers for survey-based design:
-- Household Agent: Reasoning + Decision (constructs are INPUT, not OUTPUT)
-- Insurance Agent: Analysis + Decision + Adjustment
-- Government Agent: Analysis + Decision + Priority
+Parses full LLM output for AUDIT trail:
+- Household: 5 Construct Assessments + Decision + Justification
+- Insurance: Analysis + Decision + Adjustment + Justification
+- Government: Analysis + Decision + Adjustment + Priority + Justification
 """
 
 import re
@@ -14,23 +14,28 @@ from typing import List, Literal, Tuple
 
 @dataclass
 class HouseholdOutput:
-    """Parsed output from Household Agent LLM."""
+    """Parsed output from Household Agent LLM - Full Audit Record."""
     agent_id: str
     mg: bool
     tenure: str
     year: int
     
-    # Survey Constructs (INPUT - stored for logging)
-    tp_level: str
-    cp_level: str
-    sp_level: str
-    sc_level: str
-    pa_level: str
+    # Construct Assessments (LLM OUTPUT)
+    tp_level: Literal["LOW", "MODERATE", "HIGH"]
+    tp_explanation: str
+    cp_level: Literal["LOW", "MODERATE", "HIGH"]
+    cp_explanation: str
+    sp_level: Literal["LOW", "MODERATE", "HIGH"]
+    sp_explanation: str
+    sc_level: Literal["LOW", "MODERATE", "HIGH"]
+    sc_explanation: str
+    pa_level: Literal["NONE", "PARTIAL", "FULL"]
+    pa_explanation: str
     
-    # LLM Output
-    reasoning: str
+    # Decision
     decision_number: int
     decision_skill: str
+    justification: str
     
     # Validation
     validated: bool = True
@@ -45,7 +50,7 @@ class InsuranceOutput:
     analysis: str
     decision: Literal["RAISE", "LOWER", "MAINTAIN"]
     adjustment_pct: float
-    reason: str
+    justification: str
     validated: bool = True
     raw_response: str = ""
 
@@ -58,7 +63,7 @@ class GovernmentOutput:
     decision: Literal["INCREASE", "DECREASE", "MAINTAIN"]
     adjustment_pct: float
     priority: Literal["MG", "ALL"]
-    reason: str
+    justification: str
     validated: bool = True
     raw_response: str = ""
 
@@ -73,56 +78,93 @@ def parse_household_response(
     mg: bool,
     tenure: str,
     year: int,
-    constructs: dict,  # Survey constructs passed through for logging
     elevated: bool = False
 ) -> HouseholdOutput:
     """
-    Parse LLM response into HouseholdOutput.
+    Parse LLM response into HouseholdOutput for audit.
     
     Expected format:
-    Reasoning: [explanation]
+    TP Assessment: [LEVEL] - [explanation]
+    CP Assessment: [LEVEL] - [explanation]
+    SP Assessment: [LEVEL] - [explanation]
+    SC Assessment: [LEVEL] - [explanation]
+    PA Assessment: [LEVEL] - [explanation]
     Final Decision: [number]
+    Justification: [explanation]
     """
     errors = []
     
-    # Parse reasoning
-    reasoning_match = re.search(
-        r"Reasoning:\s*(.+?)(?=Final\s*Decision:|$)", 
-        response, 
-        re.IGNORECASE | re.DOTALL
-    )
-    reasoning = reasoning_match.group(1).strip() if reasoning_match else ""
-    if not reasoning:
-        errors.append("Failed to parse Reasoning")
+    # Parse constructs
+    tp_level, tp_exp = _parse_construct(response, "TP", ["LOW", "MODERATE", "HIGH"])
+    cp_level, cp_exp = _parse_construct(response, "CP", ["LOW", "MODERATE", "HIGH"])
+    sp_level, sp_exp = _parse_construct(response, "SP", ["LOW", "MODERATE", "HIGH"])
+    sc_level, sc_exp = _parse_construct(response, "SC", ["LOW", "MODERATE", "HIGH"])
+    pa_level, pa_exp = _parse_construct(response, "PA", ["NONE", "PARTIAL", "FULL"])
+    
+    # Check for parse failures
+    for name, level in [("TP", tp_level), ("CP", cp_level), ("SP", sp_level), 
+                        ("SC", sc_level), ("PA", pa_level)]:
+        if level == "UNKNOWN":
+            errors.append(f"Failed to parse {name} Assessment")
     
     # Parse decision
     decision_match = re.search(r"Final\s*Decision:\s*\[?(\d)\]?", response, re.IGNORECASE)
     decision_number = int(decision_match.group(1)) if decision_match else 0
-    
     if decision_number == 0:
         errors.append("Failed to parse Final Decision")
     
     decision_skill = _number_to_skill(decision_number, tenure, elevated)
+    
+    # Parse justification
+    justification_match = re.search(
+        r"Justification:\s*(.+?)(?=\n\n|$)", 
+        response, 
+        re.IGNORECASE | re.DOTALL
+    )
+    justification = justification_match.group(1).strip() if justification_match else ""
+    if not justification:
+        errors.append("Failed to parse Justification")
     
     return HouseholdOutput(
         agent_id=agent_id,
         mg=mg,
         tenure=tenure,
         year=year,
-        # Pass through survey constructs for logging
-        tp_level=constructs.get("TP", "UNKNOWN"),
-        cp_level=constructs.get("CP", "UNKNOWN"),
-        sp_level=constructs.get("SP", "UNKNOWN"),
-        sc_level=constructs.get("SC", "UNKNOWN"),
-        pa_level=constructs.get("PA", "UNKNOWN"),
-        # LLM output
-        reasoning=reasoning,
+        tp_level=tp_level if tp_level != "UNKNOWN" else "MODERATE",
+        tp_explanation=tp_exp,
+        cp_level=cp_level if cp_level != "UNKNOWN" else "MODERATE",
+        cp_explanation=cp_exp,
+        sp_level=sp_level if sp_level != "UNKNOWN" else "MODERATE",
+        sp_explanation=sp_exp,
+        sc_level=sc_level if sc_level != "UNKNOWN" else "MODERATE",
+        sc_explanation=sc_exp,
+        pa_level=pa_level if pa_level != "UNKNOWN" else "NONE",
+        pa_explanation=pa_exp,
         decision_number=decision_number,
         decision_skill=decision_skill,
+        justification=justification,
         validated=len(errors) == 0,
         validation_errors=errors,
         raw_response=response
     )
+
+
+def _parse_construct(response: str, construct: str, valid_levels: List[str]) -> Tuple[str, str]:
+    """Parse a single construct from response."""
+    pattern = rf"{construct}\s*Assessment:\s*\[?(\w+)\]?\s*[-–]\s*(.+?)(?=\n[A-Z]|$)"
+    match = re.search(pattern, response, re.IGNORECASE | re.DOTALL)
+    
+    if match:
+        level = match.group(1).upper()
+        explanation = match.group(2).strip()
+        if level in valid_levels:
+            return level, explanation
+        # Fuzzy match
+        for valid in valid_levels:
+            if valid in level or level in valid:
+                return valid, explanation
+    
+    return "UNKNOWN", ""
 
 
 def _number_to_skill(num: int, tenure: str, elevated: bool) -> str:
@@ -164,17 +206,21 @@ def parse_insurance_response(response: str, year: int) -> InsuranceOutput:
     adj_match = re.search(r"Adjustment:\s*\[?(\d+(?:\.\d+)?)\s*%?\]?", response, re.IGNORECASE)
     adjustment = float(adj_match.group(1)) / 100 if adj_match else 0.0
     
-    # Parse reason
-    reason_match = re.search(r"Reason:\s*(.+?)(?=\n|$)", response, re.IGNORECASE | re.DOTALL)
-    reason = reason_match.group(1).strip() if reason_match else ""
+    # Parse justification
+    just_match = re.search(
+        r"Justification:\s*(.+?)(?=\n\n|$)", 
+        response, 
+        re.IGNORECASE | re.DOTALL
+    )
+    justification = just_match.group(1).strip() if just_match else ""
     
     return InsuranceOutput(
         year=year,
         analysis=analysis,
         decision=decision,
         adjustment_pct=adjustment,
-        reason=reason,
-        validated=bool(analysis and reason),
+        justification=justification,
+        validated=bool(analysis and justification),
         raw_response=response
     )
 
@@ -214,9 +260,13 @@ def parse_government_response(response: str, year: int) -> GovernmentOutput:
         if pri in ["MG", "ALL"]:
             priority = pri
     
-    # Parse reason
-    reason_match = re.search(r"Reason:\s*(.+?)(?=\n|$)", response, re.IGNORECASE | re.DOTALL)
-    reason = reason_match.group(1).strip() if reason_match else ""
+    # Parse justification
+    just_match = re.search(
+        r"Justification:\s*(.+?)(?=\n\n|$)", 
+        response, 
+        re.IGNORECASE | re.DOTALL
+    )
+    justification = just_match.group(1).strip() if just_match else ""
     
     return GovernmentOutput(
         year=year,
@@ -224,7 +274,7 @@ def parse_government_response(response: str, year: int) -> GovernmentOutput:
         decision=decision,
         adjustment_pct=adjustment,
         priority=priority,
-        reason=reason,
-        validated=bool(analysis and reason),
+        justification=justification,
+        validated=bool(analysis and justification),
         raw_response=response
     )
