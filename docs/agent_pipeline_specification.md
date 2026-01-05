@@ -339,3 +339,342 @@ Year Loop:
 │
 └── End Year
 ```
+
+---
+
+## 6. Behavior → State Changes
+
+### 6.1 Household State Changes
+
+| Decision | State Changes | Type |
+|----------|---------------|------|
+| `buy_insurance` | `has_insurance = True` | Annual (resets each year) |
+| `elevate_house` | `elevated = True` | Permanent |
+| `relocate` | `relocated = True` | Permanent |
+| `do_nothing` | (no change) | - |
+
+```python
+def apply_household_decision(agent: HouseholdAgent, output: HouseholdOutput):
+    """Apply validated decision to agent state."""
+    
+    if output.decision_skill == "buy_insurance":
+        agent.state.has_insurance = True
+        # Cost: property_value * premium_rate
+        
+    elif output.decision_skill == "elevate_house":
+        agent.state.elevated = True
+        # Cost: ELEVATION_COST * (1 - subsidy_rate)
+        
+    elif output.decision_skill == "relocate":
+        agent.state.relocated = True
+        # Remove from active population
+        
+    # do_nothing: no state change
+```
+
+### 6.2 Insurance State Changes
+
+| Decision | State Changes |
+|----------|---------------|
+| `RAISE` | `premium_rate += adjustment_pct` |
+| `LOWER` | `premium_rate -= adjustment_pct` |
+| `MAINTAIN` | (no change) |
+
+```python
+def apply_insurance_decision(ins: InsuranceAgent, output: InsuranceOutput):
+    if output.decision == "RAISE":
+        ins.state.premium_rate *= (1 + output.adjustment_pct)
+    elif output.decision == "LOWER":
+        ins.state.premium_rate *= (1 - output.adjustment_pct)
+```
+
+### 6.3 Government State Changes
+
+| Decision | State Changes |
+|----------|---------------|
+| `INCREASE` | `subsidy_rate += adjustment_pct` |
+| `DECREASE` | `subsidy_rate -= adjustment_pct` |
+| `MAINTAIN` | (no change) |
+
+```python
+def apply_government_decision(gov: GovernmentAgent, output: GovernmentOutput):
+    if output.decision == "INCREASE":
+        gov.state.subsidy_rate = min(1.0, gov.state.subsidy_rate + output.adjustment_pct)
+    elif output.decision == "DECREASE":
+        gov.state.subsidy_rate = max(0.0, gov.state.subsidy_rate - output.adjustment_pct)
+    
+    gov.state.priority_group = output.priority  # "MG" or "ALL"
+```
+
+### 6.4 Annual Resets
+
+```python
+def annual_reset(households: List[HouseholdAgent]):
+    """Reset non-permanent states at year start."""
+    for agent in households:
+        if not agent.state.relocated:
+            # Insurance is annual - resets unless renewed
+            agent.state.has_insurance = False
+```
+
+---
+
+## 7. Environment Modules
+
+### 7.1 Module Overview
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    ENVIRONMENT MODULES                      │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│   ┌───────────────────────────────────────────────────┐    │
+│   │  Module 1: Flood Event Generator                 │    │
+│   │  - Probabilistic flood occurrence               │    │
+│   │  - Flood severity (depth/extent)                │    │
+│   └───────────────────────────────────────────────────┘    │
+│                          │                                  │
+│                          ▼                                  │
+│   ┌───────────────────────────────────────────────────┐    │
+│   │  Module 2: Damage Calculator                     │    │
+│   │  - Physical damage based on flood + state       │    │
+│   │  - Elevated = reduced damage                    │    │
+│   └───────────────────────────────────────────────────┘    │
+│                          │                                  │
+│                          ▼                                  │
+│   ┌───────────────────────────────────────────────────┐    │
+│   │  Module 3: Insurance Claims (Future)             │    │
+│   │  - Claim processing                             │    │
+│   │  - Payout calculation                           │    │
+│   └───────────────────────────────────────────────────┘    │
+│                          │                                  │
+│                          ▼                                  │
+│   ┌───────────────────────────────────────────────────┐    │
+│   │  Module 4: Buyout Program (Future)               │    │
+│   │  - Eligibility check                            │    │
+│   │  - Approval/denial                              │    │
+│   └───────────────────────────────────────────────────┘    │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 7.2 Module 1: Flood Event Generator
+
+```python
+class FloodEventGenerator:
+    """Generate flood events probabilistically."""
+    
+    def __init__(self, config: FloodConfig):
+        self.annual_probability = config.annual_probability  # e.g., 0.3
+        self.severity_distribution = config.severity_dist    # Normal(μ, σ)
+    
+    def generate(self, year: int, seed: int = None) -> FloodEvent:
+        """Generate flood event for the year."""
+        if random.random() < self.annual_probability:
+            severity = self.severity_distribution.sample()
+            return FloodEvent(
+                year=year,
+                occurred=True,
+                severity=severity,  # 0.0 - 1.0
+                affected_regions=["NJ", "NY"]
+            )
+        return FloodEvent(year=year, occurred=False)
+```
+
+### 7.3 Module 2: Damage Calculator
+
+```python
+class DamageCalculator:
+    """Calculate damage based on flood event and agent state."""
+    
+    def calculate(self, agent: HouseholdAgent, flood: FloodEvent) -> float:
+        """
+        Calculate damage for a household.
+        
+        Factors:
+        - Flood severity
+        - Elevated status (reduces damage)
+        - Property value
+        - MG status (may affect exposure)
+        """
+        if not flood.occurred or agent.state.relocated:
+            return 0.0
+        
+        base_damage = agent.state.property_value * flood.severity
+        
+        # Elevation reduces damage by 80%
+        if agent.state.elevated:
+            base_damage *= 0.2
+        
+        # MG may have more vulnerable housing
+        if agent.state.mg:
+            base_damage *= 1.2  # 20% more vulnerable
+        
+        return min(base_damage, agent.state.property_value)
+```
+
+### 7.4 Environment → Agent Observation
+
+```python
+def prepare_agent_context(
+    agent: HouseholdAgent,
+    env: Environment,
+    year: int
+) -> Dict:
+    """Prepare observable context for agent."""
+    
+    return {
+        "year": year,
+        "flood_occurred": env.last_flood.occurred if env.last_flood else False,
+        "subsidy_rate": env.government.state.subsidy_rate,
+        "premium_rate": env.insurance.state.premium_rate,
+        
+        # Household can ONLY see their own damage
+        "own_damage": agent.state.cumulative_damage,
+        
+        # Limited neighbor observation (optional)
+        "neighbor_adaptations": count_neighbor_adaptations(agent, env)
+    }
+```
+
+---
+
+## 8. Future: Disaster Model Modules
+
+> **Note:** 以下模組待後續實作
+
+### 8.1 Module 3: Insurance Claims Processor
+
+```python
+class InsuranceClaimsProcessor:
+    """Process insurance claims after flood event."""
+    
+    def process_claim(
+        self, 
+        agent: HouseholdAgent, 
+        damage: float,
+        insurance: InsuranceAgent
+    ) -> ClaimResult:
+        """
+        Process insurance claim.
+        
+        Returns:
+            ClaimResult with:
+            - approved: bool
+            - payout: float
+            - denial_reason: Optional[str]
+        """
+        if not agent.state.has_insurance:
+            return ClaimResult(approved=False, payout=0, denial_reason="No policy")
+        
+        # NFIP: Payout capped at policy limit
+        policy_limit = 250_000  # NFIP building limit
+        payout = min(damage, policy_limit)
+        
+        # Deductible
+        deductible = 1_000
+        payout = max(0, payout - deductible)
+        
+        return ClaimResult(
+            approved=True,
+            payout=payout,
+            out_of_pocket=damage - payout
+        )
+```
+
+**Household 可見：**
+- `claim_approved: bool`
+- `claim_payout: float`
+- `out_of_pocket: float`
+
+### 8.2 Module 4: Buyout Program
+
+```python
+class BuyoutProgram:
+    """Government buyout/acquisition program."""
+    
+    def check_eligibility(
+        self, 
+        agent: HouseholdAgent,
+        government: GovernmentAgent
+    ) -> BuyoutEligibility:
+        """
+        Check if agent is eligible for buyout.
+        
+        Eligibility factors:
+        - Repetitive loss (2+ floods)
+        - Severe repetitive loss
+        - Government budget available
+        - Priority group
+        """
+        # Repetitive loss check
+        is_repetitive = agent.state.flood_count >= 2
+        
+        # Priority check
+        priority_match = (
+            government.state.priority_group == "ALL" or
+            (government.state.priority_group == "MG" and agent.state.mg)
+        )
+        
+        # Budget check
+        budget_available = government.state.buyout_budget > 0
+        
+        return BuyoutEligibility(
+            eligible=is_repetitive and priority_match and budget_available,
+            reason=self._get_reason(...)
+        )
+    
+    def process_application(
+        self, 
+        agent: HouseholdAgent
+    ) -> BuyoutResult:
+        """
+        Process buyout application.
+        
+        Returns:
+            - approved: bool
+            - offer_amount: float (pre-flood fair market value)
+            - processing_time_years: int
+        """
+        pass  # Future implementation
+```
+
+**Household 可見：**
+- `buyout_eligible: bool`
+- `buyout_offer: Optional[float]`
+
+### 8.3 Module Integration Order
+
+1. ✅ **Flood Event Generator** (已有)
+2. ✅ **Damage Calculator** (已有)
+3. 🔜 **Insurance Claims** (next)
+4. 📋 **Buyout Program** (later)
+
+---
+
+## 9. Insurance Type Configuration
+
+```python
+@dataclass
+class InsuranceAgentState:
+    agent_id: str = "InsuranceCo"
+    
+    # Type configuration
+    insurance_type: str = "NFIP"  # "NFIP", "private", "mixed"
+    
+    # NFIP: Government-backed
+    #   - Regulated rates
+    #   - Universal coverage
+    #   - Federal reinsurance
+    
+    # Private: Market-based
+    #   - Risk-based pricing
+    #   - May deny coverage
+    #   - Higher limits available
+    
+    # Metrics
+    premium_rate: float = 0.05
+    loss_ratio: float = 0.0
+    total_policies: int = 0
+    risk_pool: float = 1_000_000
+```
