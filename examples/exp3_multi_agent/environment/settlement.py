@@ -78,6 +78,13 @@ class SettlementModule:
         Runs the annual settlement physics.
         Updates all agent states in-place.
         """
+        # Helper to get state
+        def get_state(agent):
+            return getattr(agent, 'state', agent)
+
+        ins_state = get_state(insurance)
+        gov_state = get_state(government)
+
         # 1. Flood Event
         flood_event = self.simulate_flood_event(year)
         flood_occurred = flood_event is not None
@@ -86,26 +93,30 @@ class SettlementModule:
         total_damage = 0.0
         total_claims = 0.0
         
-        # 2. Collect Premiums (Simplified: All active policies pay)
-        # Assuming has_insurance means policy is active
-        active_policies = sum(1 for h in households if getattr(h, 'has_insurance', False))
-        premium_income = active_policies * insurance.premium_rate * 250_000 # Assuming fixed coverage basis? 
-        # Or simple: insurance.premium_collected += ... (Agent logic might handle collection in Phase 1?)
-        # Let's handle it here to be safe or verify.
-        # Actually agent logic usually sets parameters, Env calculates flow. 
-        insurance.premium_collected += premium_income
-        insurance.total_policies = active_policies
+        # 2. Collect Premiums
+        # Check has_insurance on household state
+        active_policies = 0
+        for h in households:
+            h_state = get_state(h)
+            if getattr(h_state, 'has_insurance', False):
+                active_policies += 1
+                
+        premium_income = active_policies * ins_state.premium_rate * 250_000 
+        
+        ins_state.premium_collected += premium_income
+        ins_state.total_policies = active_policies
         
         # 3. Calculate Damages & Claims (If Flood)
         if flood_occurred:
             for hh in households:
+                h_state = get_state(hh)
                 outcome = self.catastrophe.calculate_financials(
-                    hh.id, hh, flood_event, insurance
+                    h_state.id, h_state, flood_event, ins_state
                 )
                 
                 # Update Household
-                hh.cumulative_damage += outcome['damage_amount']
-                hh.cumulative_oop += outcome['oop_cost']
+                h_state.cumulative_damage += outcome['damage_amount']
+                h_state.cumulative_oop += outcome['oop_cost']
                 
                 # Update Memory
                 if hasattr(hh, 'memory'):
@@ -115,18 +126,17 @@ class SettlementModule:
                     hh.memory.add_episodic(event_desc, importance=severity, year=year, tags=['flood'])
                     
                     if outcome['payout_amount'] > 0:
-                         hh.trust_in_insurance = min(1.0, hh.trust_in_insurance + 0.1)
-                    elif hh.has_insurance and outcome['damage_amount'] > 0:
-                         # Claim denied or deductible too high?
-                         hh.trust_in_insurance = max(0.0, hh.trust_in_insurance - 0.2)
-
+                         h_state.trust_in_insurance = min(1.0, h_state.trust_in_insurance + 0.1)
+                    elif h_state.has_insurance and outcome['damage_amount'] > 0:
+                         h_state.trust_in_insurance = max(0.0, h_state.trust_in_insurance - 0.2)
+                
                 # Track Totals
                 total_damage += outcome['damage_amount']
                 total_claims += outcome['payout_amount']
         
         # 4. Update Insurance Financials
-        insurance.claims_paid += total_claims
-        insurance.risk_pool = insurance.risk_pool + premium_income - total_claims
+        ins_state.claims_paid += total_claims
+        ins_state.risk_pool = ins_state.risk_pool + premium_income - total_claims
         
         # 5. Generate Report
         report = SettlementReport(
@@ -135,9 +145,9 @@ class SettlementModule:
             flood_severity=severity,
             total_damage=total_damage,
             total_claims=total_claims,
-            total_subsidies=500_000 - government.budget_remaining, # Approx diff
-            insurance_loss_ratio=insurance.loss_ratio,
-            government_budget_remaining=government.budget_remaining
+            total_subsidies=500_000 - gov_state.budget_remaining, 
+            insurance_loss_ratio=ins_state.loss_ratio,
+            government_budget_remaining=gov_state.budget_remaining
         )
         
         return report

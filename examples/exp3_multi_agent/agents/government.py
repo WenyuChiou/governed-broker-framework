@@ -49,7 +49,7 @@ class GovernmentAgent:
         # Skill definitions could be dynamic, but hardcoded for now
         self.skills = ["increase_subsidy", "decrease_subsidy", "maintain_subsidy"]
 
-    def reset_annual_budget(self):
+    def reset_annual_budget(self, year: int):
         """Resets the budget at the start of the year."""
         self.state.budget_remaining = self.state.annual_budget
         
@@ -57,7 +57,7 @@ class GovernmentAgent:
         self.memory.add_episodic(
             f"Budget reset to ${self.state.annual_budget:,.0f}", 
             importance=0.1, 
-            year=self.memory.current_year,
+            year=year,
             tags=["budget"]
         )
 
