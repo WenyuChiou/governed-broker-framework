@@ -182,6 +182,7 @@ See [examples/README.md](examples/README.md) for detailed version comparison.
 | **SkillProposal** | `skill_types.py` | 📦 Structured LLM output format (JSON) |
 | **ModelAdapter** | `model_adapter.py` | 🔄 Parses raw LLM text → SkillProposal |
 | **ContextBuilder** | `context_builder.py` | 👁️ Builds bounded context for agents |
+| **Memory** | `memory.py` | 🧠 Working + Episodic memory with consolidation |
 | **AuditWriter** | `audit_writer.py` | 📊 Complete audit trail for reproducibility |
 
 ### State Layer (`simulation/`)
