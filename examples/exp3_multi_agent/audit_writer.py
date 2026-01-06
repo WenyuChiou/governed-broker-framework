@@ -58,17 +58,34 @@ class AuditWriter:
             "total_institutional_decisions": 0,
             "decisions_by_type": {
                 "buy_insurance": 0,
+                "buy_contents_insurance": 0,
                 "elevate_house": 0,
+                "buyout_program": 0,
                 "relocate": 0,
                 "do_nothing": 0
             },
             "validation_failures": 0,
+            "parse_warnings": 0,  # Separate from rule violations
             "constructs_distribution": {
                 "TP": {"LOW": 0, "MODERATE": 0, "HIGH": 0},
                 "CP": {"LOW": 0, "MODERATE": 0, "HIGH": 0},
                 "SP": {"LOW": 0, "MODERATE": 0, "HIGH": 0},
                 "SC": {"LOW": 0, "MODERATE": 0, "HIGH": 0},
                 "PA": {"NONE": 0, "PARTIAL": 0, "FULL": 0}
+            },
+            # === NEW: Demographic breakdown ===
+            "demographic_breakdown": {
+                "MG_Owner": {"decisions": 0, "actions": {}},
+                "MG_Renter": {"decisions": 0, "actions": {}},
+                "NMG_Owner": {"decisions": 0, "actions": {}},
+                "NMG_Renter": {"decisions": 0, "actions": {}}
+            },
+            # === NEW: PMT interaction matrix ===
+            "pmt_interaction": {
+                "TP_HIGH_CP_HIGH": {"action": 0, "no_action": 0},
+                "TP_HIGH_CP_LOW": {"action": 0, "no_action": 0},
+                "TP_LOW_CP_HIGH": {"action": 0, "no_action": 0},
+                "TP_LOW_CP_LOW": {"action": 0, "no_action": 0}
             }
         }
     
@@ -100,9 +117,30 @@ class AuditWriter:
         # Update construct distribution
         self._update_construct_stats(output)
         
-        # Track validation failures
+        # === NEW: Update demographic breakdown ===
+        demo_key = f"{'MG' if output.mg else 'NMG'}_{output.tenure.title()}"
+        if demo_key in self.summary["demographic_breakdown"]:
+            demo = self.summary["demographic_breakdown"][demo_key]
+            demo["decisions"] += 1
+            demo["actions"][skill] = demo["actions"].get(skill, 0) + 1
+        
+        # === NEW: Update PMT interaction matrix ===
+        tp_cat = "HIGH" if output.tp_level == "HIGH" else "LOW"
+        cp_cat = "HIGH" if output.cp_level == "HIGH" else "LOW"
+        pmt_key = f"TP_{tp_cat}_CP_{cp_cat}"
+        if pmt_key in self.summary["pmt_interaction"]:
+            is_action = skill not in ["do_nothing"]
+            action_key = "action" if is_action else "no_action"
+            self.summary["pmt_interaction"][pmt_key][action_key] += 1
+        
+        # Track validation failures (distinguish parse errors from rule violations)
         if not output.validated:
-            self.summary["validation_failures"] += 1
+            # Check if it's a parse failure or rule violation
+            has_rule_violation = any(err.startswith("R") for err in output.validation_errors)
+            if has_rule_violation:
+                self.summary["validation_failures"] += 1
+            else:
+                self.summary["parse_warnings"] += 1
         
         # Build trace
         trace = {
