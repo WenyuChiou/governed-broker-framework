@@ -82,81 +82,113 @@ class ValidationRule(ABC):
 
 
 # =============================================================================
-# HOUSEHOLD RULES
+# HOUSEHOLD RULES (Literature-backed)
 # =============================================================================
 
 class R1_HighTPCPDoNothing(ValidationRule):
-    """HIGH TP + HIGH CP → Should NOT do_nothing"""
+    """HIGH TP + HIGH CP → Should NOT do_nothing
+    
+    Literature: Grothmann & Reusswig (2006) - People at Risk of Flooding
+    PMT theory predicts: HIGH threat + HIGH coping → Protection Motivation → Action
+    Choosing do_nothing in this case contradicts PMT predictions.
+    """
     rule_id = "R1"
-    description = "HIGH threat + HIGH coping should lead to protective action"
+    description = "HIGH threat + HIGH coping should lead to protective action (Grothmann & Reusswig, 2006)"
     eligible_agent_types = {"household_owner", "household_renter"}
     severity = "warning"
+    literature = "Grothmann, T., & Reusswig, F. (2006). People at risk of flooding. Natural Hazards, 38, 101-120."
     
     def check(self, output: HouseholdOutput, state: Dict) -> Optional[str]:
         if output.tp_level == "HIGH" and output.cp_level == "HIGH":
             if output.decision_skill == "do_nothing":
-                return "HIGH threat + HIGH coping but chose do_nothing - possible irrational behavior"
+                return "HIGH threat + HIGH coping but chose do_nothing - contradicts PMT (Grothmann & Reusswig, 2006)"
         return None
 
 
 class R2_LowTPAction(ValidationRule):
-    """LOW TP → Taking action is notable (precautionary)"""
+    """LOW TP → Taking action is notable (precautionary)
+    
+    Literature: Rogers (1983) - Protection Motivation Theory
+    LOW threat perception typically leads to no action. Taking action despite low threat
+    indicates precautionary behavior, which is acceptable but notable.
+    """
     rule_id = "R2"
-    description = "LOW threat but taking protective action"
+    description = "LOW threat but taking protective action (precautionary, Rogers 1983)"
     eligible_agent_types = {"household_owner", "household_renter"}
     severity = "warning"
+    literature = "Rogers, R.W. (1983). Cognitive and physiological processes in fear appeals. Social Psychophysiology."
     
     def check(self, output: HouseholdOutput, state: Dict) -> Optional[str]:
         if output.tp_level == "LOW" and output.decision_skill != "do_nothing":
-            return "LOW threat but took protective action - precautionary behavior (acceptable)"
+            return "LOW threat but took protective action - precautionary behavior (acceptable per Rogers, 1983)"
         return None
 
 
 class R3_NoRedundantElevation(ValidationRule):
-    """Already elevated or FULL PA → Cannot elevate again"""
+    """Already elevated or FULL PA → Cannot elevate again
+    
+    Literature: FEMA guidelines - One-time structural mitigation
+    Elevation is a permanent, one-time action. Cannot be repeated.
+    """
     rule_id = "R3"
-    description = "Prevent redundant elevation"
+    description = "Prevent redundant elevation (FEMA structural mitigation guidelines)"
     eligible_agent_types = {"household_owner"}  # Only owners can elevate
     severity = "error"
+    literature = "FEMA (2022). Hazard Mitigation Assistance Program and Policy Guide."
     
     def check(self, output: HouseholdOutput, state: Dict) -> Optional[str]:
         if output.decision_skill == "elevate_house":
             if state.get("elevated", False):
-                return "Cannot elevate - house already elevated"
+                return "Cannot elevate - house already elevated (once-only per FEMA)"
             if output.pa_level == "FULL":
                 return "PA=FULL indicates full protection - elevation unnecessary"
         return None
 
 
 class R4_RenterNoElevate(ValidationRule):
-    """Renter → Cannot elevate_house"""
+    """Renter → Cannot elevate_house or apply for buyout
+    
+    Literature: Property rights - Structural modifications require ownership
+    Renters do not own property and cannot make structural changes or sell to government.
+    """
     rule_id = "R4"
-    description = "Renters cannot elevate property they don't own"
+    description = "Renters cannot modify property they don't own"
     eligible_agent_types = {"household_renter"}
     severity = "error"
+    literature = "FEMA HMGP eligibility requirements - property ownership required."
     
     def check(self, output: HouseholdOutput, state: Dict) -> Optional[str]:
-        if output.decision_skill == "elevate_house":
-            return "Renters cannot elevate property they don't own"
+        owner_only_actions = ["elevate_house", "buyout_program"]
+        if output.decision_skill in owner_only_actions:
+            return f"Renters cannot {output.decision_skill} - requires property ownership"
         return None
 
 
 class R5_AffordabilityCheck(ValidationRule):
-    """LOW CP + HIGH cost action → Warning"""
+    """LOW CP + HIGH cost action → Warning
+    
+    Literature: Bamberg et al. (2017) Meta-analysis
+    Coping appraisal (r=0.30) is stronger predictor than threat appraisal (r=0.23).
+    LOW CP choosing high-cost action is inconsistent with PMT.
+    """
     rule_id = "R5"
-    description = "Low coping with high-cost action may face affordability issues"
+    description = "Low coping with high-cost action is inconsistent (Bamberg et al., 2017)"
     eligible_agent_types = {"household_owner", "household_renter"}
     severity = "warning"
+    literature = "Bamberg, S., et al. (2017). Threat, coping and flood prevention. J Environmental Psychology, 54, 116-126."
     
     def check(self, output: HouseholdOutput, state: Dict) -> Optional[str]:
-        high_cost_actions = ["elevate_house", "relocate"]
+        high_cost_actions = ["elevate_house", "relocate", "buyout_program"]
         if output.cp_level == "LOW" and output.decision_skill in high_cost_actions:
-            return f"LOW coping perception but chose {output.decision_skill} - may face affordability issues"
+            return f"LOW coping but chose {output.decision_skill} - inconsistent with PMT (Bamberg et al., 2017)"
         return None
 
 
 class R6_RelocatedNoAction(ValidationRule):
-    """Already relocated → Cannot take any action"""
+    """Already relocated → Cannot take any action
+    
+    Literature: Simulation logic - relocated agents exit the flood zone
+    """
     rule_id = "R6"
     description = "Relocated agents cannot take further flood actions"
     eligible_agent_types = {"household_owner", "household_renter"}
@@ -169,20 +201,29 @@ class R6_RelocatedNoAction(ValidationRule):
 
 
 class R7_FullPARelocate(ValidationRule):
-    """FULL PA → Relocating may be overreacting"""
+    """FULL PA → Relocating/Buyout may be overreacting
+    
+    Literature: Grothmann & Reusswig (2006) - Non-protective responses
+    When fully protected, extreme actions (leaving) suggest non-protective response patterns.
+    """
     rule_id = "R7"
-    description = "Full protection but choosing to relocate"
+    description = "Full protection but choosing to leave (Grothmann & Reusswig, 2006)"
     eligible_agent_types = {"household_owner", "household_renter"}
     severity = "warning"
+    literature = "Grothmann & Reusswig (2006) - Non-protective response patterns"
     
     def check(self, output: HouseholdOutput, state: Dict) -> Optional[str]:
-        if output.pa_level == "FULL" and output.decision_skill == "relocate":
-            return "PA=FULL (fully protected) but chose to relocate - may be overreacting"
+        leave_actions = ["relocate", "buyout_program"]
+        if output.pa_level == "FULL" and output.decision_skill in leave_actions:
+            return f"PA=FULL but chose {output.decision_skill} - may be overreacting or non-protective response"
         return None
 
 
 class R8_PAConsistency(ValidationRule):
-    """PA level should match actual state"""
+    """PA level should match actual state
+    
+    Literature: LLM accuracy check - ensuring model understands current protection status
+    """
     rule_id = "R8"
     description = "PA assessment should match agent's actual protection status"
     eligible_agent_types = {"household_owner", "household_renter"}
@@ -203,16 +244,37 @@ class R8_PAConsistency(ValidationRule):
 
 
 class R9_RenterValidActions(ValidationRule):
-    """Renter can only: buy_insurance, relocate, do_nothing"""
+    """Renter can only: buy_contents_insurance, relocate, do_nothing
+    
+    Literature: NFIP - Contents-only coverage for renters
+    """
     rule_id = "R9"
-    description = "Renters have limited action options"
+    description = "Renters have limited action options (NFIP contents-only coverage)"
     eligible_agent_types = {"household_renter"}
+    severity = "error"
+    literature = "FEMA NFIP - Renters may purchase contents-only coverage."
+    
+    def check(self, output: HouseholdOutput, state: Dict) -> Optional[str]:
+        valid_actions = ["buy_contents_insurance", "relocate", "do_nothing"]
+        if output.decision_skill not in valid_actions:
+            return f"Renter cannot {output.decision_skill} - valid actions: {', '.join(valid_actions)}"
+        return None
+
+
+class R10_OwnerValidActions(ValidationRule):
+    """Owner valid actions check
+    
+    Owners can: buy_insurance, elevate_house (if not elevated), buyout_program, do_nothing
+    """
+    rule_id = "R10"
+    description = "Owners have specific action options"
+    eligible_agent_types = {"household_owner"}
     severity = "error"
     
     def check(self, output: HouseholdOutput, state: Dict) -> Optional[str]:
-        valid_actions = ["buy_insurance", "relocate", "do_nothing"]
+        valid_actions = ["buy_insurance", "elevate_house", "buyout_program", "do_nothing"]
         if output.decision_skill not in valid_actions:
-            return f"Renter cannot {output.decision_skill} - valid actions: {', '.join(valid_actions)}"
+            return f"Owner cannot {output.decision_skill} - valid actions: {', '.join(valid_actions)}"
         return None
 
 
@@ -376,6 +438,7 @@ def create_default_registry() -> RuleRegistry:
         R7_FullPARelocate(),
         R8_PAConsistency(),
         R9_RenterValidActions(),
+        R10_OwnerValidActions(),
     ])
     
     # Insurance rules

@@ -168,13 +168,19 @@ def _parse_construct(response: str, construct: str, valid_levels: List[str]) -> 
 
 
 def _number_to_skill(num: int, tenure: str, elevated: bool) -> str:
-    """Convert decision number to skill name based on agent type."""
+    """Convert decision number to skill name based on agent type.
+    
+    Mappings (aligned with skill_registry.yaml):
+    - Owner (non-elevated): 1=buy_insurance, 2=elevate_house, 3=buyout_program, 4=do_nothing
+    - Owner (elevated): 1=buy_insurance, 2=buyout_program, 3=do_nothing
+    - Renter: 1=buy_contents_insurance, 2=relocate, 3=do_nothing
+    """
     if tenure == "Renter":
-        mapping = {1: "buy_insurance", 2: "relocate", 3: "do_nothing"}
+        mapping = {1: "buy_contents_insurance", 2: "relocate", 3: "do_nothing"}
     elif elevated:
-        mapping = {1: "buy_insurance", 2: "relocate", 3: "do_nothing"}
+        mapping = {1: "buy_insurance", 2: "buyout_program", 3: "do_nothing"}
     else:
-        mapping = {1: "buy_insurance", 2: "elevate_house", 3: "relocate", 4: "do_nothing"}
+        mapping = {1: "buy_insurance", 2: "elevate_house", 3: "buyout_program", 4: "do_nothing"}
     
     return mapping.get(num, "unknown")
 

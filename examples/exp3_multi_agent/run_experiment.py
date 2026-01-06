@@ -104,8 +104,14 @@ def generate_heuristic_response(agent: HouseholdAgent, year: int, context: dict)
     Generate heuristic response when LLM unavailable.
     
     Simulates PMT-based decision making.
+    Aligned with skill_registry.yaml mappings:
+    - Owner (non-elevated): 1=buy_insurance, 2=elevate_house, 3=buyout_program, 4=do_nothing
+    - Owner (elevated): 1=buy_insurance, 2=buyout_program, 3=do_nothing
+    - Renter: 1=buy_contents_insurance, 2=relocate, 3=do_nothing
     """
     s = agent.state
+    is_owner = s.tenure == "Owner"
+    is_elevated = s.elevated
     
     # Determine construct levels based on state
     tp = "HIGH" if s.cumulative_damage > s.property_value * 0.1 else ("MODERATE" if s.cumulative_damage > 0 else "LOW")
@@ -114,17 +120,34 @@ def generate_heuristic_response(agent: HouseholdAgent, year: int, context: dict)
     sc = "MODERATE"
     pa = "FULL" if s.elevated and s.has_insurance else ("PARTIAL" if s.elevated or s.has_insurance else "NONE")
     
-    # Determine decision
+    # Determine decision based on agent type
     if s.relocated:
-        decision, num = "do_nothing", 4 if s.tenure == "Owner" else 3
+        # Already relocated - do nothing
+        if is_owner:
+            decision, num = "do_nothing", 3 if is_elevated else 4
+        else:
+            decision, num = "do_nothing", 3
     elif tp == "HIGH" and not s.has_insurance:
-        decision, num = "buy_insurance", 1
-    elif tp in ["MODERATE", "HIGH"] and not s.elevated and s.tenure == "Owner" and sp == "HIGH":
+        # High threat, no insurance -> buy insurance
+        if is_owner:
+            decision, num = "buy_insurance", 1
+        else:
+            decision, num = "buy_contents_insurance", 1
+    elif tp in ["MODERATE", "HIGH"] and not is_elevated and is_owner and sp == "HIGH":
+        # Moderate+ threat, not elevated, owner with good subsidy -> elevate
         decision, num = "elevate_house", 2
     elif s.cumulative_damage > s.property_value * 0.5 and s.income < 40000:
-        decision, num = "relocate", 3 if s.tenure == "Owner" else 2
+        # Severe cumulative damage, low income -> leave
+        if is_owner:
+            decision, num = "buyout_program", 2 if is_elevated else 3
+        else:
+            decision, num = "relocate", 2
     else:
-        decision, num = "do_nothing", 4 if s.tenure == "Owner" and not s.elevated else 3
+        # Default to do nothing
+        if is_owner:
+            decision, num = "do_nothing", 3 if is_elevated else 4
+        else:
+            decision, num = "do_nothing", 3
     
     justification = f"Based on {tp} threat and {cp} coping ability, {decision} is appropriate."
     
@@ -191,7 +214,14 @@ def run_simulation():
         # =============================================
         # Phase 2: Household Decisions
         # =============================================
-        actions = {"do_nothing": 0, "buy_insurance": 0, "elevate_house": 0, "relocate": 0}
+        actions = {
+            "do_nothing": 0, 
+            "buy_insurance": 0, 
+            "buy_contents_insurance": 0,
+            "elevate_house": 0, 
+            "relocate": 0,
+            "buyout_program": 0
+        }
         validation_warnings = 0
         validation_errors = 0
         

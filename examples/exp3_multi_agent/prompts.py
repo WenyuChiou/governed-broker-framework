@@ -87,15 +87,15 @@ Justification: [2-3 sentences explaining why you chose this action based on your
 # Options based on agent type
 OPTIONS_OWNER_NON_ELEVATED = """1. Buy flood insurance (Annual cost, financial protection)
 2. Elevate your house (High cost, subsidy available, prevents damage)
-3. Relocate (Leave neighborhood permanently)
+3. Apply for government buyout program (Sell property to government, permanently leave flood zone)
 4. Do nothing (No cost, remain exposed)"""
 
 OPTIONS_OWNER_ELEVATED = """1. Buy flood insurance (Additional financial protection)
-2. Relocate (Leave neighborhood permanently)
+2. Apply for government buyout program (Sell property to government, permanently leave)
 3. Do nothing (Your house has elevation protection)"""
 
-OPTIONS_RENTER = """1. Buy renter's flood insurance (Protect belongings)
-2. Relocate (Move to safer area)
+OPTIONS_RENTER = """1. Buy renter's contents insurance (Protect belongings only)
+2. Relocate to safer area (Move to lower flood-risk neighborhood)
 3. Do nothing (No cost, belongings at risk)"""
 
 # Context templates
