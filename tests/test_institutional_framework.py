@@ -4,7 +4,7 @@ import sys
 sys.path.insert(0, '.')
 
 from agents.loader import load_agent_configs, load_agents
-from agents.institutional_base import normalize, denormalize
+from agents.base_agent import normalize, denormalize
 
 
 def test_normalization():
@@ -23,7 +23,7 @@ def test_normalization():
 
 def test_load_configs():
     """Test YAML config loading."""
-    configs = load_agent_configs("agents/flood_agents.yaml")
+    configs = load_agent_configs("agents/examples/flood_agents.yaml")
     
     assert len(configs) == 2
     assert configs[0].name == "InsuranceCo"
@@ -43,7 +43,7 @@ def test_load_configs():
 
 def test_agent_instantiation():
     """Test agent creation and state access."""
-    agents = load_agents("agents/flood_agents.yaml")
+    agents = load_agents("agents/examples/flood_agents.yaml")
     
     assert "InsuranceCo" in agents
     assert "StateGov" in agents
@@ -67,7 +67,7 @@ def test_agent_instantiation():
 
 def test_objectives_evaluation():
     """Test objective evaluation."""
-    agents = load_agents("agents/flood_agents.yaml")
+    agents = load_agents("agents/examples/flood_agents.yaml")
     ins = agents["InsuranceCo"]
     
     obj_eval = ins.evaluate_objectives()
@@ -87,7 +87,7 @@ def test_objectives_evaluation():
 
 def test_constraint_check():
     """Test constraint validation."""
-    agents = load_agents("agents/flood_agents.yaml")
+    agents = load_agents("agents/examples/flood_agents.yaml")
     ins = agents["InsuranceCo"]
     
     # Valid change (within 15%)
@@ -103,7 +103,7 @@ def test_constraint_check():
 
 def test_skill_execution():
     """Test skill execution."""
-    agents = load_agents("agents/flood_agents.yaml")
+    agents = load_agents("agents/examples/flood_agents.yaml")
     ins = agents["InsuranceCo"]
     
     initial_rate = ins.get_state("premium_rate")

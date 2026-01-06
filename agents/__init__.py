@@ -5,9 +5,16 @@ Provides base classes for building domain-agnostic agents with:
 - 0-1 normalized state
 - YAML-defined configuration
 - Literature-backed objectives and constraints
+
+Usage:
+    # Load from user-defined YAML
+    agents = load_agents("my_agents.yaml")
+    
+    # Or create programmatically
+    from agents import BaseAgent, AgentConfig
 """
 
-from agents.institutional_base import (
+from agents.base_agent import (
     # Normalization utilities
     normalize,
     denormalize,
@@ -18,10 +25,10 @@ from agents.institutional_base import (
     Constraint,
     PerceptionSource,
     Skill,
-    InstitutionalAgentConfig,
+    AgentConfig,
     
     # Agent base class
-    InstitutionalAgent,
+    BaseAgent,
 )
 
 from agents.loader import (
@@ -41,10 +48,10 @@ __all__ = [
     'Constraint',
     'PerceptionSource',
     'Skill',
-    'InstitutionalAgentConfig',
+    'AgentConfig',
     
     # Agent
-    'InstitutionalAgent',
+    'BaseAgent',
     
     # Loader
     'load_agent_configs',

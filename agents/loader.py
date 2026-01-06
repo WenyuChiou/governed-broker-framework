@@ -1,5 +1,5 @@
 """
-YAML Configuration Loader for Institutional Agents
+YAML Configuration Loader for Base Agents
 
 Allows users to define any agent type via YAML configuration.
 """
@@ -8,9 +8,9 @@ import yaml
 from pathlib import Path
 from typing import List, Dict, Any
 
-from agents.institutional_base import (
-    InstitutionalAgentConfig,
-    InstitutionalAgent,
+from agents.base_agent import (
+    AgentConfig,
+    BaseAgent,
     StateParam,
     Objective,
     Constraint,
@@ -19,7 +19,7 @@ from agents.institutional_base import (
 )
 
 
-def load_agent_configs(yaml_path: str) -> List[InstitutionalAgentConfig]:
+def load_agent_configs(yaml_path: str) -> List[AgentConfig]:
     """
     Load institutional agent configurations from YAML file.
     
@@ -27,7 +27,7 @@ def load_agent_configs(yaml_path: str) -> List[InstitutionalAgentConfig]:
         yaml_path: Path to YAML config file
         
     Returns:
-        List of InstitutionalAgentConfig objects
+        List of AgentConfig objects
     """
     with open(yaml_path, 'r', encoding='utf-8') as f:
         data = yaml.safe_load(f)
@@ -92,7 +92,7 @@ def load_agent_configs(yaml_path: str) -> List[InstitutionalAgentConfig]:
             for s in agent_def.get("skills", [])
         ]
         
-        config = InstitutionalAgentConfig(
+        config = AgentConfig(
             name=agent_def["name"],
             agent_type=agent_def.get("type", "institutional"),
             state_params=state_params,
@@ -109,7 +109,7 @@ def load_agent_configs(yaml_path: str) -> List[InstitutionalAgentConfig]:
     return configs
 
 
-def load_agents(yaml_path: str, memory_factory=None) -> Dict[str, InstitutionalAgent]:
+def load_agents(yaml_path: str, memory_factory=None) -> Dict[str, BaseAgent]:
     """
     Load and instantiate agents from YAML config.
     
@@ -118,13 +118,13 @@ def load_agents(yaml_path: str, memory_factory=None) -> Dict[str, InstitutionalA
         memory_factory: Optional callable to create memory for each agent
         
     Returns:
-        Dict mapping agent names to InstitutionalAgent instances
+        Dict mapping agent names to BaseAgent instances
     """
     configs = load_agent_configs(yaml_path)
     
     agents = {}
     for config in configs:
         memory = memory_factory(config.name) if memory_factory else None
-        agents[config.name] = InstitutionalAgent(config, memory)
+        agents[config.name] = BaseAgent(config, memory)
     
     return agents

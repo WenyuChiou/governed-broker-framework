@@ -109,7 +109,7 @@ class Skill:
 
 
 @dataclass
-class InstitutionalAgentConfig:
+class AgentConfig:
     """
     Complete configuration for a generic institutional agent.
     All values should be in 0-1 normalized scale.
@@ -135,15 +135,15 @@ class InstitutionalAgentConfig:
 # BASE AGENT CLASS
 # =============================================================================
 
-class InstitutionalAgent:
+class BaseAgent:
     """
-    Generic institutional agent with 0-1 normalized state.
+    Generic base agent with 0-1 normalized state.
     
     Can be instantiated for any domain (flood, healthcare, supply chain)
-    by providing appropriate InstitutionalAgentConfig.
+    by providing appropriate AgentConfig.
     """
     
-    def __init__(self, config: InstitutionalAgentConfig, memory=None):
+    def __init__(self, config: AgentConfig, memory=None):
         self.config = config
         self.name = config.name
         self.agent_type = config.agent_type
@@ -200,7 +200,7 @@ class InstitutionalAgent:
     def observe(
         self, 
         environment: Dict[str, float], 
-        agents: Dict[str, 'InstitutionalAgent']
+        agents: Dict[str, 'BaseAgent']
     ) -> Dict[str, float]:
         """
         Gather perception from environment and other agents.
