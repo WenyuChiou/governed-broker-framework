@@ -183,6 +183,9 @@ def run_simulation():
     print(f"Loaded {len(households)} household agents")
     print(f"Governments: {list(govs.keys())}")
     
+    # Track flood history for government decisions
+    prev_year_flood = False
+    
     for year in range(1, CONFIG['years'] + 1):
         print(f"\n{'='*40}")
         print(f"YEAR {year}")
@@ -210,6 +213,72 @@ def run_simulation():
         for gov_id, gov in govs.items():
             gov.reset_annual_budget(year)
         ins.reset_annual_metrics()
+        
+        # --- Insurance Agent Decision ---
+        ins_state = ins.to_dict()
+        ins_history = ins.memory.retrieve(top_k=3, current_year=year)
+        ins_history_text = [m[0] if isinstance(m, tuple) else str(m) for m in ins_history]
+        
+        if CONFIG["use_llm"]:
+            ins_prompt = build_insurance_prompt(ins_state, ins_history_text)
+            ins_response = call_llm(ins_prompt)
+            if ins_response:
+                ins_output = parse_insurance_response(ins_response, year)
+                # Execute decision
+                if ins_output.decision == "RAISE":
+                    adj = ins_output.adjustment_pct / 100
+                    ins.state.premium_rate *= (1 + adj)
+                elif ins_output.decision == "LOWER":
+                    adj = ins_output.adjustment_pct / 100
+                    ins.state.premium_rate *= (1 - adj)
+                # Log to memory
+                ins.memory.add_episodic(
+                    f"Year {year}: {ins_output.decision} premium by {ins_output.adjustment_pct}%",
+                    importance=0.7 if ins_output.decision != "MAINTAIN" else 0.3,
+                    year=year, tags=["llm", "decision"]
+                )
+                # Write audit trace
+                audit.write_insurance_trace(ins_output, ins.state.id, ins.to_dict())
+        else:
+            # Rule-based fallback (existing logic in agent)
+            ins.decide_strategy(year)
+        
+        # --- Government Agent Decisions ---
+        flood_prev = year > 1 and prev_year_flood
+        for gov_id, gov in govs.items():
+            gov_state = {
+                "annual_budget": gov.state.annual_budget,
+                "budget_remaining": gov.state.budget_remaining,
+                "subsidy_rate": gov.state.subsidy_rate,
+                "mg_adoption_rate": gov.state.mg_adoption_rate,
+                "nmg_adoption_rate": gov.state.nmg_adoption_rate
+            }
+            gov_events = gov.memory.retrieve(top_k=3, current_year=year)
+            gov_events_text = [m[0] if isinstance(m, tuple) else str(m) for m in gov_events]
+            
+            if CONFIG["use_llm"]:
+                gov_prompt = build_government_prompt(gov_state, gov_events_text)
+                gov_response = call_llm(gov_prompt)
+                if gov_response:
+                    gov_output = parse_government_response(gov_response, year)
+                    # Execute decision
+                    if gov_output.decision == "INCREASE":
+                        adj = gov_output.adjustment_pct / 100
+                        gov.state.subsidy_rate = min(0.95, gov.state.subsidy_rate + adj)
+                    elif gov_output.decision == "DECREASE":
+                        adj = gov_output.adjustment_pct / 100
+                        gov.state.subsidy_rate = max(0.20, gov.state.subsidy_rate - adj)
+                    # Log to memory
+                    gov.memory.add_episodic(
+                        f"Year {year}: {gov_output.decision} subsidy by {gov_output.adjustment_pct}%",
+                        importance=0.7 if gov_output.decision != "MAINTAIN" else 0.3,
+                        year=year, tags=["llm", "decision"]
+                    )
+                    # Write audit trace
+                    audit.write_government_trace(gov_output, gov.state.id, gov_state)
+            else:
+                # Rule-based fallback
+                gov.decide_policy(year, flood_prev)
         
         # =============================================
         # Phase 2: Household Decisions
@@ -327,6 +396,9 @@ def run_simulation():
         cum_elevated = sum(1 for h in households if h.state.elevated)
         cum_relocated = sum(1 for h in households if h.state.relocated)
         print(f"Cumulative: Insured={cum_insured}, Elevated={cum_elevated}, Relocated={cum_relocated}")
+        
+        # Update flood history for next year's government decisions
+        prev_year_flood = report.flood_occurred
     
     # =============================================
     # Finalize
