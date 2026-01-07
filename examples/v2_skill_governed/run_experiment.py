@@ -363,13 +363,24 @@ def setup_governance(
     skill_registry.register_from_yaml(registry_path)
     print(f"✅ Loaded Skill Registry from {registry_path.name}")
     
-    # 2. Model Adapter (Interprets LLM output for 'household' agents)
-    # Uses broker/agent_types.yaml by default for fuzzy matching & aliasing
-    model_adapter = UnifiedAdapter(agent_type="household")
+    # 2. Local Configuration (Experiment-Specific Settings)
+    # This separates the experiment's domain rules from the global default.
+    local_config_path = Path(__file__).parent / "agent_types.yaml"
+    print(f"✅ Loaded Agent Config from {local_config_path.name}")
     
-    # 3. Validator (Enforces coherence & constraints)
-    # Uses broker/agent_types.yaml for rules (e.g., rate_bounds, PMT coherence)
-    validators = AgentValidator()
+    # Resetting config singleton to ensure local config is loaded (crucial if running in shared process)
+    # In a fresh script run, this is safe.
+    from broker.agent_config import AgentTypeConfig
+    AgentTypeConfig._instance = None
+    
+    # 3. Model Adapter (Interprets LLM output using local config)
+    model_adapter = UnifiedAdapter(
+        agent_type="household",
+        config_path=str(local_config_path)
+    )
+    
+    # 4. Validator (Enforces coherence & constraints from local config)
+    validators = AgentValidator(config_path=str(local_config_path))
     
     # 4. Audit Writer (Logs traces for verification)
     audit_config = GenericAuditConfig(
