@@ -74,11 +74,21 @@ class AgentTypeConfig:
         with open(yaml_path, 'r', encoding='utf-8') as f:
             self._config = yaml.safe_load(f)
     
+    def get_base_type(self, agent_type: str) -> str:
+        """Map a specific agent type/subtype to a base type defined in config."""
+        # Handle common subtypes like household_mg -> household
+        # If the exact type exists, return it, otherwise try base mapping
+        if agent_type in self._config:
+            return agent_type
+        
+        # Simple suffix-based mapping as a fallback
+        base_type = agent_type.replace("_mg", "").replace("_nmg", "")
+        return base_type
+
     def get(self, agent_type: str) -> Dict[str, Any]:
         """Get config for agent type."""
-        # Handle subtypes like household_mg -> household
-        base_type = agent_type.replace("_mg", "").replace("_nmg", "")
-        return self._config.get(base_type, self._config.get("household", {}))
+        base_type = self.get_base_type(agent_type)
+        return self._config.get(base_type, {})
     
     def get_valid_actions(self, agent_type: str) -> List[str]:
         """Get all valid action IDs and aliases for agent type."""
@@ -138,6 +148,11 @@ class AgentTypeConfig:
         """Get parsing configuration for model adapter."""
         cfg = self.get(agent_type)
         return cfg.get("parsing", {})
+
+    def get_parameters(self, agent_type: str) -> Dict[str, Any]:
+        """Get domain parameters for agent type."""
+        cfg = self.get(agent_type)
+        return cfg.get("parameters", {})
 
     @property
     def agent_types(self) -> List[str]:

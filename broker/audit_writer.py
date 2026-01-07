@@ -29,8 +29,8 @@ class GenericAuditWriter:
     
     Usage:
         writer = GenericAuditWriter(AuditConfig(output_dir="results"))
-        writer.write_trace("household", trace_dict)
-        writer.write_trace("insurance", trace_dict)
+        writer.write_trace("agent_type_a", trace_dict)
+        writer.write_trace("agent_type_b", trace_dict)
         writer.finalize()
     """
     
@@ -67,7 +67,7 @@ class GenericAuditWriter:
         Write a generic trace for any agent type.
         
         Args:
-            agent_type: e.g., "household", "insurance", "government"
+            agent_type: Name of the agent category (e.g., "type_a", "type_b")
             trace: Dict with at least: agent_id, year, decision
             validation_results: Optional list of ValidationResult
         """

@@ -25,7 +25,7 @@ from .skill_types import (
 )
 from .skill_registry import SkillRegistry
 from .model_adapter import ModelAdapter
-from validators.skill_validators import SkillValidator
+from validators import AgentValidator
 
 
 class SkillBrokerEngine:
@@ -50,7 +50,7 @@ class SkillBrokerEngine:
         self,
         skill_registry: SkillRegistry,
         model_adapter: ModelAdapter,
-        validators: List[SkillValidator],
+        validator: AgentValidator,
         simulation_engine: Any,
         context_builder: Any,
         audit_writer: Optional[Any] = None,
@@ -58,7 +58,7 @@ class SkillBrokerEngine:
     ):
         self.skill_registry = skill_registry
         self.model_adapter = model_adapter
-        self.validators = validators
+        self.validator = validator
         self.simulation_engine = simulation_engine
         self.context_builder = context_builder
         self.audit_writer = audit_writer
@@ -117,8 +117,14 @@ class SkillBrokerEngine:
             "agent_type": agent_type
         }
         
-        validation_results = self._run_validators(skill_proposal, validation_context)
-        all_valid = all(v.valid for v in validation_results)
+        validation_results = self.validator.validate(
+            agent_type=agent_type,
+            agent_id=agent_id,
+            decision=skill_proposal.skill_name,
+            state=context,
+            reasoning=skill_proposal.reasoning
+        )
+        all_valid = not any(v.valid is False for v in validation_results)
         
         # Retry loop
         retry_count = 0
@@ -131,8 +137,14 @@ class SkillBrokerEngine:
             skill_proposal = self.model_adapter.parse_output(raw_output, context)
             
             if skill_proposal:
-                validation_results = self._run_validators(skill_proposal, validation_context)
-                all_valid = all(v.valid for v in validation_results)
+                validation_results = self.validator.validate(
+                    agent_type=agent_type,
+                    agent_id=agent_id,
+                    decision=skill_proposal.skill_name,
+                    state=context,
+                    reasoning=skill_proposal.reasoning
+                )
+                all_valid = not any(v.valid is False for v in validation_results)
         
         # ④ Create ApprovedSkill or use fallback
         if all_valid:
@@ -200,13 +212,9 @@ class SkillBrokerEngine:
             retry_count=retry_count
         )
     
-    def _run_validators(self, proposal: SkillProposal, context: Dict) -> List[ValidationResult]:
-        """Run all validators on the skill proposal."""
-        results = []
-        for validator in self.validators:
-            result = validator.validate(proposal, context, self.skill_registry)
-            results.append(result)
-        return results
+    def _run_validators(self, proposal: SkillProposal, context: Dict) -> List[Any]:
+        """Placeholder for backward compatibility - not used with AgentValidator."""
+        return []
     
     def _hash_context(self, context: Dict) -> str:
         """Create hash of context for audit."""

@@ -11,6 +11,17 @@
 household:
   description: "Household agents making flood adaptation decisions"
   
+  # Domain Parameters
+  parameters:
+    elevation_cost: 150000
+    tp_threshold_moderate: 0.05
+    tp_threshold_high: 0.20
+    income_threshold_low: 35000
+    income_threshold_mod: 60000
+    trust_threshold_ins: 0.65
+    trust_threshold_gov: 0.40
+    damage_threshold_relocate: 0.50
+  
   # Parsing Configuration
   parsing:
     decision_keywords: ["decide:", "skill:", "decision:", "final decision:"]
@@ -140,6 +151,15 @@ household:
 insurance:
   description: "Insurance company managing risk pool and premiums"
   
+  # Domain Parameters
+  parameters:
+    loss_ratio_threshold_high: 0.80
+    loss_ratio_threshold_low: 0.30
+    uptake_threshold_low: 0.40
+    rate_adj_raise: 1.10
+    rate_adj_lower: 0.95
+    solvency_target: 1000000
+  
   # Parsing Configuration
   parsing:
     decision_keywords: ["decide:", "decision:", "action:"]
@@ -196,6 +216,15 @@ insurance:
 
 government:
   description: "Government managing subsidies and equity programs"
+  
+  # Domain Parameters
+  parameters:
+    mg_adoption_threshold: 0.30
+    budget_tight_threshold: 50000
+    rate_adj_step: 0.10
+    max_subsidy: 0.90
+    min_subsidy: 0.30
+    default_budget: 500000
   
   # Parsing Configuration
   parsing:

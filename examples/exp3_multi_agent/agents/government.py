@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 from typing import List, Dict, Any, Optional
 
 from broker.memory import CognitiveMemory, MemoryProvider
+from broker.agent_config import AgentTypeConfig
 
 @dataclass
 class GovernmentAgentState:
@@ -46,6 +47,10 @@ class GovernmentAgent:
         self.memory = CognitiveMemory(agent_id)
         self.state.memory = self.memory
         
+        # Load config parameters
+        self.config_loader = AgentTypeConfig.load()
+        self.params = self.config_loader.get_parameters("government")
+        
         # Skill definitions could be dynamic, but hardcoded for now
         self.skills = ["increase_subsidy", "decrease_subsidy", "maintain_subsidy"]
 
@@ -79,18 +84,18 @@ class GovernmentAgent:
         # Access memory to see past trends (simulating cognitive lookup)
         past_policies = self.memory.retrieve(top_k=2)
         
-        if flood_occurred_prev_year and self.state.mg_adoption_rate < 0.30:
+        if flood_occurred_prev_year and self.state.mg_adoption_rate < self.params.get("mg_adoption_threshold", 0.30):
             decision = "increase_subsidy"
             reasoning = "Flood occurred and MG adoption is low"
-        elif self.state.budget_remaining < 50_000 and self.state.subsidy_rate > 0.50:
+        elif self.state.budget_remaining < self.params.get("budget_tight_threshold", 50_000) and self.state.subsidy_rate > self.params.get("min_subsidy", 0.30):
             decision = "decrease_subsidy"
             reasoning = "Budget is tight"
             
         # Execute decision (State Update)
         if decision == "increase_subsidy":
-            self.state.subsidy_rate = min(0.90, self.state.subsidy_rate + 0.10)
+            self.state.subsidy_rate = min(self.params.get("max_subsidy", 0.90), self.state.subsidy_rate + self.params.get("rate_adj_step", 0.10))
         elif decision == "decrease_subsidy":
-            self.state.subsidy_rate = max(0.30, self.state.subsidy_rate - 0.10)
+            self.state.subsidy_rate = max(self.params.get("min_subsidy", 0.30), self.state.subsidy_rate - self.params.get("rate_adj_step", 0.10))
             
         # Log decision
         self.memory.add_episodic(

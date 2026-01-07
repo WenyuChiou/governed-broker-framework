@@ -20,6 +20,7 @@ from typing import List, Dict, Any, Optional, Literal
 import random
 
 from broker.memory import CognitiveMemory
+from broker.agent_config import AgentTypeConfig
 
 @dataclass
 class HouseholdAgentState:
@@ -138,6 +139,10 @@ class HouseholdAgent:
         )
         self.memory = CognitiveMemory(agent_id)
         self.state.memory = self.memory
+        
+        # Load config parameters
+        self.config_loader = AgentTypeConfig.load()
+        self.params = self.config_loader.get_parameters("household")
 
 
     def reset_insurance(self):
@@ -162,16 +167,26 @@ class HouseholdAgent:
         
         # TP: Threat Perception (based on damage history)
         tp_level = "LOW"
-        if s.cumulative_damage > s.property_value * 0.20:
+        if s.cumulative_damage > s.property_value * self.params.get("tp_threshold_high", 0.20):
             tp_level = "HIGH"
-        elif s.cumulative_damage > s.property_value * 0.05:
+        elif s.cumulative_damage > s.property_value * self.params.get("tp_threshold_moderate", 0.05):
             tp_level = "MODERATE"
         tp_exp = f"Cumulative damage: ${s.cumulative_damage:,.0f}"
         
         # CP: Coping Perception (based on income vs action cost)
-        elevation_cost = 150_000
+        elevation_cost = self.params.get("elevation_cost", 150_000)
         insurance_cost = s.property_value * context.get("insurance_premium_rate", 0.05)
-        cp_level = "HIGH" if s.income > 60_000 else ("MODERATE" if s.income > 35_000 else "LOW")
+        
+        income_low = self.params.get("income_threshold_low", 35000)
+        income_mod = self.params.get("income_threshold_mod", 60000)
+        
+        if s.income > income_mod:
+            cp_level = "HIGH"
+        elif s.income > income_low:
+            cp_level = "MODERATE"
+        else:
+            cp_level = "LOW"
+            
         cp_exp = f"Income ${s.income:,.0f}, Elev cost ${elevation_cost:,.0f}"
         
         # SP: Subsidy Perception
@@ -197,20 +212,20 @@ class HouseholdAgent:
         
         # 1. Insurance logic: Buy if damaged OR high trust (and not already insured this year)
         if not s.has_insurance:
-            if tp_level in ["MODERATE", "HIGH"] or s.trust_in_insurance > 0.65:
+            if tp_level in ["MODERATE", "HIGH"] or s.trust_in_insurance > self.params.get("trust_threshold_ins", 0.65):
                 decision_num = 1
                 decision_skill = "buy_insurance"
         
         # 2. Elevation logic: Owner + Subsidy available + Damaged
         if decision_skill == "do_nothing" and not s.elevated and s.tenure == "Owner":
             if sp_level in ["MODERATE", "HIGH"] and tp_level in ["MODERATE", "HIGH"]:
-                if s.trust_in_government > 0.4:
+                if s.trust_in_government > self.params.get("trust_threshold_gov", 0.40):
                     decision_num = 2
                     decision_skill = "elevate_house"
         
         # 3. Relocation logic (rare): Extreme damage + Low income
-        if decision_skill == "do_nothing" and s.cumulative_damage > s.property_value * 0.50:
-            if s.income < 40000:
+        if decision_skill == "do_nothing" and s.cumulative_damage > s.property_value * self.params.get("damage_threshold_relocate", 0.50):
+            if s.income < income_mod: # Using MOD threshold for relocation logic
                 decision_num = 3
                 decision_skill = "relocate"
         

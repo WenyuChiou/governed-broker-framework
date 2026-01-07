@@ -63,10 +63,9 @@ class AgentValidator:
         """
         results = []
         
-        if agent_type.startswith("household"):
-            base_type = "household"
-        else:
-            base_type = agent_type
+        # 0. Handle subtypes (e.g., household_mg -> household) if defined in config mapping
+        # This mapping should ideally be handled by the Config loader, but we preserve it generically
+        base_type = self.config.get_base_type(agent_type)
             
         # 1. Validate decision is in allowed values
         valid_actions = self.config.get_valid_actions(base_type)
@@ -84,9 +83,10 @@ class AgentValidator:
                     constraint=str(valid_actions[:4]) + "..."
                 ))
         
-        # 2. Validate PMT Coherence (Household only)
-        if base_type == "household" and reasoning:
-            results.extend(self.validate_pmt_coherence(agent_id, state, reasoning))
+        # 2. Validate Cognitive/Construct Coherence (if defined in config)
+        coherence_rules = self.config.get_coherence_rules(base_type)
+        if coherence_rules and reasoning:
+            results.extend(self.validate_coherence(agent_id, base_type, state, reasoning))
         
         # 3. Validate rate/param bounds
         rules = self.config.get_validation_rules(base_type)
@@ -144,24 +144,34 @@ class AgentValidator:
         self._categorize_results(results)
         return results
 
-    def validate_pmt_coherence(
+    def validate_coherence(
         self,
         agent_id: str,
+        agent_type: str,
         state: Dict[str, Any],
         reasoning: Dict[str, str]
     ) -> List[ValidationResult]:
         """
-        Validate logical coherence between Agent State and LLM PMT Labels.
+        Validate logical coherence between Agent State and LLM Cognitive Labels.
         Uses rules from agent_types.yaml.
         """
         results = []
-        rules = self.config.get_coherence_rules("household")
+        rules = self.config.get_coherence_rules(agent_type)
         
         # Helper to safely get label (handles brackets like [H])
         def get_label(key):
+            # Check both raw key and EVAL_ prefixed key
             val = reasoning.get(key, reasoning.get(f"EVAL_{key}", "")).upper()
-            label = val.split(']')[0].replace("[", "").replace("]", "").strip() if ']' in val else val.strip()
-            return label[:1] # Just take the first char (L, M, H) unless it's NONE/PARTIAL/FULL
+            if not val:
+                return None
+            
+            # Extract label from brackets or take first char
+            if ']' in val:
+                label = val.split(']')[0].replace("[", "").replace("]", "").strip()
+            else:
+                label = val.strip()
+            
+            return label
 
         for rule in rules:
             label = get_label(rule.construct)
@@ -181,20 +191,26 @@ class AgentValidator:
             # Check coherence
             is_coherent = True
             if current_val >= rule.threshold:
-                if rule.expected_levels and label not in rule.expected_levels:
-                    # Special case for L/M/H vs NONE/PARTIAL/FULL
-                    is_coherent = False
+                if rule.expected_levels:
+                    # Generic inclusion check (works for L, M, H or FULL, PARTIAL, NONE)
+                    found = False
+                    for level in rule.expected_levels:
+                        if label.startswith(level.upper()):
+                            found = True
+                            break
+                    if not found:
+                        is_coherent = False
             
             if not is_coherent:
                 results.append(ValidationResult(
                     valid=False,
                     level=ValidationLevel.WARNING,
-                    rule=f"pmt_coherence_{rule.construct.lower()}",
+                    rule=f"coherence_{rule.construct.lower()}",
                     message=rule.message or f"Coherence issue with {rule.construct}",
                     agent_id=agent_id,
                     field=rule.construct,
                     value=label,
-                    constraint=f"Expected {rule.expected_levels} when state >= {rule.threshold}"
+                    constraint=f"Expected one of {rule.expected_levels} when state >= {rule.threshold}"
                 ))
             
         return results

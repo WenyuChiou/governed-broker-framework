@@ -27,13 +27,7 @@ class SimpleMemory:
     MEMORY_WINDOW = 5
     RANDOM_RECALL_CHANCE = 0.2
     
-    PAST_EVENTS = [
-        "A flood event about 15 years ago caused $500,000 in city-wide damages",
-        "Some residents reported delays when processing their flood insurance claims",
-        "A few households in the area elevated their homes before recent floods",
-        "The city previously introduced a program offering elevation support",
-        "News outlets have reported increasing flood frequency and severity"
-    ]
+    PAST_EVENTS = []
     
     def __init__(self, agent_id: str = ""):
         self.agent_id = agent_id
@@ -400,11 +394,11 @@ class MemoryAwareContextBuilder(ContextBuilder):
     
     def _get_relevant_tags(self, agent_type: str) -> List[str]:
         """Get relevant retrieval tags for agent type."""
-        base_tags = ["flood", "adaptation"]
+        base_tags = ["general"]
         if "MG" in agent_type:
             base_tags.append("subsidy")
         if "Owner" in agent_type:
-            base_tags.extend(["elevation", "insurance"])
+            base_tags.extend(["action"])
         return base_tags
     
     def format_prompt(self, context: Dict[str, Any]) -> str:
@@ -424,16 +418,11 @@ class MemoryAwareContextBuilder(ContextBuilder):
             agent_id, content, importance, self._current_year
         )
     
-    def update_after_flood(self, agent_id: str, damage: float) -> None:
-        """Update memory after flood."""
-        self.memory_provider.update_after_flood(
-            agent_id, damage, self._current_year
-        )
-    
-    def update_after_decision(self, agent_id: str, decision: str) -> None:
-        """Update memory after decision."""
-        self.memory_provider.update_after_decision(
-            agent_id, decision, self._current_year
+    def add_event(self, agent_id: str, content: str, 
+                  tags: List[str] = None) -> None:
+        """Add arbitrary event to memory."""
+        self.memory_provider.add_experience(
+            agent_id, content, 0.5, self._current_year, tags=tags
         )
     
     def consolidate_memories(self) -> Dict[str, int]:

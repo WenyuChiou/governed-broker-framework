@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 from typing import List, Dict, Any, Optional
 
 from broker.memory import CognitiveMemory
+from broker.agent_config import AgentTypeConfig
 
 @dataclass
 class InsuranceAgentState:
@@ -49,6 +50,10 @@ class InsuranceAgent:
         self.state = InsuranceAgentState(id=agent_id)
         self.memory = CognitiveMemory(agent_id)
         self.state.memory = self.memory
+        
+        # Load config parameters
+        self.config_loader = AgentTypeConfig.load()
+        self.params = self.config_loader.get_parameters("insurance")
 
     def reset_annual_metrics(self):
         """Resets annual tracking metrics."""
@@ -64,18 +69,18 @@ class InsuranceAgent:
         reasoning = "Loss ratio within acceptable range"
         
         # Simple Rules (to be replaced/augmented by LLM)
-        if loss_ratio > 0.80:
+        if loss_ratio > self.params.get("loss_ratio_threshold_high", 0.80):
             decision = "raise_premium"
             reasoning = f"Loss ratio {loss_ratio:.2f} is too high (>0.8)"
-        elif loss_ratio < 0.30 and self.state.uptake_rate < 0.40:
+        elif loss_ratio < self.params.get("loss_ratio_threshold_low", 0.30) and self.state.uptake_rate < self.params.get("uptake_threshold_low", 0.40):
             decision = "lower_premium"
             reasoning = f"Loss ratio {loss_ratio:.2f} low, trying to increase uptake"
             
         # Execute Decision
         if decision == "raise_premium":
-            self.state.premium_rate *= 1.10
+            self.state.premium_rate *= self.params.get("rate_adj_raise", 1.10)
         elif decision == "lower_premium":
-            self.state.premium_rate *= 0.95
+            self.state.premium_rate *= self.params.get("rate_adj_lower", 0.95)
             
         # Log Decision
         self.memory.add_episodic(
@@ -89,8 +94,9 @@ class InsuranceAgent:
 
     @property
     def solvency(self) -> float:
-        """Solvency ratio (Risk Pool / 1M target)."""
-        return min(1.0, self.state.risk_pool / 1_000_000)
+        """Solvency ratio (Risk Pool / Target reserve)."""
+        target = self.params.get("solvency_target", 1_000_000)
+        return min(1.0, self.state.risk_pool / target)
 
     @property
     def market_ratio(self) -> float:
