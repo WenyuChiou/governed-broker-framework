@@ -40,6 +40,7 @@ from examples.exp3_multi_agent.parsers import (
     HouseholdOutput
 )
 from examples.exp3_multi_agent.validators import HouseholdValidator
+from validators.institutional_validator import InstitutionalValidator
 from examples.exp3_multi_agent.audit_writer import AuditWriter, AuditConfig
 from examples.exp3_multi_agent.agents import HouseholdAgent
 from examples.exp3_multi_agent.environment import SettlementModule
@@ -178,6 +179,7 @@ def run_simulation():
     households, govs, ins = initialize_all_agents(seed=SEED)
     settlement = SettlementModule(seed=SEED)
     validator = HouseholdValidator()
+    inst_validator = InstitutionalValidator()  # NEW: Institutional validator
     audit = AuditWriter(AuditConfig(output_dir=CONFIG["output_dir"]))
     
     print(f"Loaded {len(households)} household agents")
@@ -216,6 +218,7 @@ def run_simulation():
         
         # --- Insurance Agent Decision ---
         ins_state = ins.to_dict()
+        prev_premium_rate = ins.state.premium_rate  # Track for validation
         ins_history = ins.memory.retrieve(top_k=3, current_year=year)
         ins_history_text = [m[0] if isinstance(m, tuple) else str(m) for m in ins_history]
         
@@ -231,21 +234,40 @@ def run_simulation():
                 elif ins_output.decision == "LOWER":
                     adj = ins_output.adjustment_pct / 100
                     ins.state.premium_rate *= (1 - adj)
+                
+                # Validate decision
+                val_results = inst_validator.validate_insurance(
+                    agent_id=ins.state.id,
+                    decision=ins_output.decision,
+                    premium_rate=ins.state.premium_rate,
+                    prev_premium_rate=prev_premium_rate,
+                    solvency=ins_state.get("solvency", 0.5)
+                )
+                
                 # Log to memory
                 ins.memory.add_episodic(
                     f"Year {year}: {ins_output.decision} premium by {ins_output.adjustment_pct}%",
                     importance=0.7 if ins_output.decision != "MAINTAIN" else 0.3,
                     year=year, tags=["llm", "decision"]
                 )
-                # Write audit trace
-                audit.write_insurance_trace(ins_output, ins.state.id, ins.to_dict())
+                # Write audit trace with validation
+                audit.write_insurance_trace(ins_output, ins.state.id, ins.to_dict(), val_results)
         else:
             # Rule-based fallback (existing logic in agent)
-            ins.decide_strategy(year)
+            decision = ins.decide_strategy(year)
+            # Validate rule-based decision
+            val_results = inst_validator.validate_insurance(
+                agent_id="InsuranceCo",
+                decision=decision,
+                premium_rate=ins.state.premium_rate,
+                prev_premium_rate=prev_premium_rate,
+                solvency=0.5  # Default for rule-based
+            )
         
         # --- Government Agent Decisions ---
         flood_prev = year > 1 and prev_year_flood
         for gov_id, gov in govs.items():
+            prev_subsidy_rate = gov.state.subsidy_rate  # Track for validation
             gov_state = {
                 "annual_budget": gov.state.annual_budget,
                 "budget_remaining": gov.state.budget_remaining,
@@ -268,17 +290,39 @@ def run_simulation():
                     elif gov_output.decision == "DECREASE":
                         adj = gov_output.adjustment_pct / 100
                         gov.state.subsidy_rate = max(0.20, gov.state.subsidy_rate - adj)
+                    
+                    # Validate decision
+                    val_results = inst_validator.validate_government(
+                        agent_id=gov.state.id,
+                        decision=gov_output.decision,
+                        subsidy_rate=gov.state.subsidy_rate,
+                        prev_subsidy_rate=prev_subsidy_rate,
+                        budget_used=1 - (gov.state.budget_remaining / gov.state.annual_budget),
+                        mg_adoption=gov.state.mg_adoption_rate,
+                        nmg_adoption=gov.state.nmg_adoption_rate
+                    )
+                    
                     # Log to memory
                     gov.memory.add_episodic(
                         f"Year {year}: {gov_output.decision} subsidy by {gov_output.adjustment_pct}%",
                         importance=0.7 if gov_output.decision != "MAINTAIN" else 0.3,
                         year=year, tags=["llm", "decision"]
                     )
-                    # Write audit trace
-                    audit.write_government_trace(gov_output, gov.state.id, gov_state)
+                    # Write audit trace with validation
+                    audit.write_government_trace(gov_output, gov.state.id, gov_state, val_results)
             else:
                 # Rule-based fallback
-                gov.decide_policy(year, flood_prev)
+                decision = gov.decide_policy(year, flood_prev)
+                # Validate rule-based decision
+                val_results = inst_validator.validate_government(
+                    agent_id=gov_id,
+                    decision=decision,
+                    subsidy_rate=gov.state.subsidy_rate,
+                    prev_subsidy_rate=prev_subsidy_rate,
+                    budget_used=0.0,
+                    mg_adoption=gov.state.mg_adoption_rate,
+                    nmg_adoption=gov.state.nmg_adoption_rate
+                )
         
         # =============================================
         # Phase 2: Household Decisions
