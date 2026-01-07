@@ -202,7 +202,7 @@ class BaseAgentContextBuilder(ContextBuilder):
         return "\n".join(lines) if lines else "No objectives"
 
 
-# Compact token-efficient prompt template
+# Compact token-efficient prompt template with LLM interpretation
 DEFAULT_PROMPT_TEMPLATE = """[{agent_type}:{agent_name}]
 
 STATE:{state}
@@ -211,7 +211,9 @@ MEM:{memory}
 OBJ:{objectives}
 ACT:{skills}
 
-DECIDE: action, adj(0-0.15), reason(1line)"""
+OUTPUT:
+INTERPRET:[1-line summary of your situation]
+DECIDE:[action] ADJ:[0-0.15] REASON:[1-line]"""
 
 
 # Verbose template for debugging/analysis
