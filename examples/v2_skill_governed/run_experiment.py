@@ -244,18 +244,18 @@ class FloodContextBuilder:
         
         memory = "\n".join(f"- {m}" for m in context.get("memory", [])) or "No past events recalled."
         
-        # Options format aligned with MCP framework (numbered choices)
+        # Options format aligned with MCP framework (but requesting explicit IDs to avoid numeric confusion)
         if context.get("elevated"):
-            options = """1. Buy flood insurance (Lower cost, provides partial financial protection but does not reduce physical damage.)
-2. Relocate (Requires leaving your neighborhood but eliminates flood risk permanently.)
-3. Do nothing (Require no financial investment or effort this year, but it might leave you exposed to future flood damage.)"""
-            valid_choices = "1, 2, or 3"
+            options = """1. "buy_insurance": Purchase flood insurance (Lower cost, provides partial financial protection.)
+2. "relocate": Relocate (Eliminates flood risk permanently.)
+3. "do_nothing": Do nothing (No cost, but leaves you exposed.)"""
+            valid_choices = '"buy_insurance", "relocate", or "do_nothing"'
         else:
-            options = """1. Buy flood insurance (Lower cost, provides partial financial protection but does not reduce physical damage.)
-2. Elevate your house (High upfront cost but can prevent most physical damage.)
-3. Relocate (Requires leaving your neighborhood but eliminates flood risk permanently.)
-4. Do nothing (Require no financial investment or effort this year, but it might leave you exposed to future flood damage.)"""
-            valid_choices = "1, 2, 3, or 4"
+            options = """1. "buy_insurance": Purchase flood insurance (Lower cost, provides partial financial protection.)
+2. "elevate_house": Elevate your house (High upfront cost but prevents damage.)
+3. "relocate": Relocate (Eliminates flood risk permanently.)
+4. "do_nothing": Do nothing (No cost, but leaves you exposed.)"""
+            valid_choices = '"buy_insurance", "elevate_house", "relocate", or "do_nothing"'
         
         flood_status = (
             "A flood occurred this year."
@@ -280,7 +280,7 @@ Using the Protection Motivation Theory, evaluate your current situation by consi
 
 Now, choose one of the following actions:
 {options}
-Note: If no flood occurred this year, since no immediate threat, most people would choose "Do Nothing."
+Note: If no flood occurred this year, since no immediate threat, most people would choose "do_nothing".
 {flood_status}
 
 Please respond using the exact format below. Do NOT include any markdown symbols:

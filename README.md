@@ -193,12 +193,11 @@ python run_experiment.py --model llama3.2:3b --num-agents 100 --num-years 10
 | Directory | Version | Experiment | Status |
 |-----------|---------|------------|--------|
 | `examples/v2_skill_governed/` | **Skill-Governed (v2)** | Exp 10 | ✅ Recommended |
-| `examples/v1_mcp_flood/` | MCP (v1) | Exp 9 | ⚠️ DEPRECATED |
 | `broker/legacy/` | Legacy broker components | - | ⚠️ DEPRECATED |
 
-> **Note**: Use `v2_skill_governed/` for all new experiments. Legacy code is in `broker/legacy/`.
+> **Note**: `examples/v1_mcp_flood/` has been removed. Use `v2` for all new experiments.
 
-See [examples/README.md](examples/README.md) for detailed version comparison.
+See [examples/README.md](examples/README.md) for detailed examples.
 
 ---
 
@@ -367,6 +366,30 @@ The validator enforces **Psychological Coherence** by checking if the LLM's **Ra
 | **PA** (Attachment)| `elevated` OR `insured` | True | NONE |
 
 Validations are logged as `WARNING` or `ERROR` in the audit trail.
+
+---
+
+## Customizable Prompts & Audits 🎨
+
+The framework allows you to fully customize how agents perceive and log the world.
+
+### Custom Prompts
+You can override the default `ContextBuilder` or simply edit the `prompt_template` in `agent_types.yaml`:
+```yaml
+parsing:
+  decision_keywords: ["MY_ACTION:"]
+prompt_template: |
+  My custom prompt for {agent_name}...
+  OUTPUT: MY_ACTION:[action]
+```
+
+### Custom Audit Structure
+You can inherit from `GenericAuditWriter` to implement custom valid logging schemas (e.g., for ELK stack or SQL):
+```python
+class MyCustomAudit(GenericAuditWriter):
+    def format_trace(self, trace: Dict) -> Dict:
+        return {"my_custom_field": "value", **trace}
+```
 
 ---
 
