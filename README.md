@@ -33,11 +33,31 @@ The Governed Broker Framework provides a **skill-governed architecture** for bui
 
 | Challenge | Problem | Solution | Component |
 |-----------|---------|----------|-----------|
-| **Hallucination** | LLM generates invalid/non-existent actions | Skill Registry restricts to registered skills only | `SkillRegistry` |
-| **Asymmetric Information** | LLM lacks state awareness, makes infeasible decisions | Context Builder provides bounded observable state | `ContextBuilder` |
-| **Inconsistent Decisions** | Contradictory or illogical choices | Multi-stage validators check PMT consistency | `Validators` |
-| **No Traceability** | Cannot reproduce or audit decisions | Complete audit trail with timestamps | `AuditWriter` |
-| **Uncontrolled State Mutation** | Direct, unvalidated state changes | State Manager controls all state updates | `StateManager` |
+| **Hallucination** | LLM generates invalid actions | Skill Registry restricts to registered skills | `SkillRegistry` |
+| **Inconsistent Decisions** | Illogical or contradictory choices | Multi-stage validators check config-driven rules | `Validators` |
+| **Domain Leakage** | Hardcoded logic in core layers | Config-driven orchestration & generic base classes | `Core Engine` |
+| **No Traceability** | Cannot reproduce decisions | Complete audit trail with timestamps | `AuditWriter` |
+| **Uncontrolled State** | Direct state mutation | State Manager controls all updates | `StateManager` |
+
+---
+
+## Framework vs. User Extension
+
+To maintain a clean separation of concerns, the project is divided into **Framework Core** (generic logic) and **User Extension** (domain-specific logic).
+
+### 🛠️ Framework Core (Do Not Modify)
+These modules provide the generic orchestration and should remain domain-agnostic:
+- **`broker/`**: Core registration, parsing, context building, and audit logic.
+- **`simulation/`**: Generic multi-level state management and simulation loops.
+- **`providers/`**: LLM connectivity (Ollama, OpenAI, etc.).
+- **`validators/`**: The base `AgentValidator` engine.
+
+### 🎨 User Extension (Customizable)
+These areas are where users implement their specific simulation domain:
+- **`broker/agent_types.yaml`**: Define your agent profiles, skills, and behavior parameters.
+- **`validators/coherence_rules.yaml`**: Define domain-specific consistency and safety rules.
+- **`examples/`**: Your experiment-specific agent implementations, environment models, and data.
+- **`data/*.csv`**: Your agent population data and demographics.
 
 ---
 
@@ -199,30 +219,30 @@ See [examples/README.md](examples/README.md) for detailed version comparison.
 | **Memory** | `memory.py` | 🧠 Working + Episodic memory with consolidation |
 | **AuditWriter** | `audit_writer.py` | 📊 Complete audit trail for reproducibility |
 | **GenericAuditWriter** | `generic_audit_writer.py` | 📊 Agent-agnostic audit logging (Dict-based) |
-| **AgentConfig** | `agent_config.py` | ⚙️ Unified agent type configuration loader |
-| **DataLoader** | `data_loader.py` | 📥 Extensible CSV/Excel data import |
-
 #### Agent Type Configuration (`broker/agent_types.yaml`)
 
-All agent settings in **one unified file**:
+All agent settings are externalized to a **unified YAML configuration**. This allows changing agent behavior without modifying Python code.
 
 ```yaml
 household:
-  actions: [buy_insurance, elevate_house, relocate, do_nothing]
-  constructs: {TP, CP, SP, SC, PA}  # PMT Theory
-  coherence_rules: {...}
-  prompt_template: |
-    ...
-
-insurance:
-  actions: [RAISE, LOWER, MAINTAIN]
-  validation_rules:
-    rate_bounds: {min: 0.02, max: 0.15}
+  # Valid skills for this agent type
+  actions: 
+    - id: buy_insurance
+      aliases: ["Purchase Insurance"]
+    - id: do_nothing
+  
+  # Domain-specific parameters accessed via get_parameters()
+  parameters:
+    income_threshold: 40000
+    damage_threshold: 0.1
+    
+  # PMT Theory constructs for validation
+  constructs: [TP, CP, SP, SC, PA]
 ```
 
-#### Data Schema (`broker/data_loader.py`)
+#### Generic AgentValidator (`validators/agent_validator.py`)
 
-Supports **extensible demographics**:
+The framework uses a **metadata-driven** validation system. Rules are configured in `agent_types.yaml` and `coherence_rules.yaml`.
 
 | Category | Fields |
 |----------|--------|
