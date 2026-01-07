@@ -150,13 +150,19 @@ def parse_household_response(
 
 
 def _parse_construct(response: str, construct: str, valid_levels: List[str]) -> Tuple[str, str]:
-    """Parse a single construct from response."""
-    pattern = rf"{construct}\s*Assessment:\s*\[?(\w+)\]?\s*[-–]\s*(.+?)(?=\n[A-Z]|$)"
+    """Parse a single construct from response.
+    
+    Returns:
+        (level, explanation) tuple. Level is "UNKNOWN" only if no valid level found.
+        Explanation can be empty string if LLM didn't provide one.
+    """
+    # Try standard pattern: "TP Assessment: HIGH - explanation"
+    pattern = rf"{construct}\s*Assessment:\s*\[?(\w+)\]?\s*[-–]?\s*(.+?)(?=\n[A-Z]|$)"
     match = re.search(pattern, response, re.IGNORECASE | re.DOTALL)
     
     if match:
         level = match.group(1).upper()
-        explanation = match.group(2).strip()
+        explanation = match.group(2).strip() if match.group(2) else ""
         if level in valid_levels:
             return level, explanation
         # Fuzzy match
@@ -164,17 +170,35 @@ def _parse_construct(response: str, construct: str, valid_levels: List[str]) -> 
             if valid in level or level in valid:
                 return valid, explanation
     
+    # Try simpler pattern: just "TP Assessment: HIGH" without explanation
+    simple_pattern = rf"{construct}\s*Assessment:\s*\[?(\w+)\]?"
+    simple_match = re.search(simple_pattern, response, re.IGNORECASE)
+    
+    if simple_match:
+        level = simple_match.group(1).upper()
+        if level in valid_levels:
+            return level, ""  # Level found, empty explanation is OK
+        for valid in valid_levels:
+            if valid in level or level in valid:
+                return valid, ""
+    
     return "UNKNOWN", ""
 
 
 def _number_to_skill(num: int, tenure: str, elevated: bool) -> str:
-    """Convert decision number to skill name based on agent type."""
+    """Convert decision number to skill name based on agent type.
+    
+    Mappings (aligned with skill_registry.yaml):
+    - Owner (non-elevated): 1=buy_insurance, 2=elevate_house, 3=buyout_program, 4=do_nothing
+    - Owner (elevated): 1=buy_insurance, 2=buyout_program, 3=do_nothing
+    - Renter: 1=buy_contents_insurance, 2=relocate, 3=do_nothing
+    """
     if tenure == "Renter":
-        mapping = {1: "buy_insurance", 2: "relocate", 3: "do_nothing"}
+        mapping = {1: "buy_contents_insurance", 2: "relocate", 3: "do_nothing"}
     elif elevated:
-        mapping = {1: "buy_insurance", 2: "relocate", 3: "do_nothing"}
+        mapping = {1: "buy_insurance", 2: "buyout_program", 3: "do_nothing"}
     else:
-        mapping = {1: "buy_insurance", 2: "elevate_house", 3: "relocate", 4: "do_nothing"}
+        mapping = {1: "buy_insurance", 2: "elevate_house", 3: "buyout_program", 4: "do_nothing"}
     
     return mapping.get(num, "unknown")
 

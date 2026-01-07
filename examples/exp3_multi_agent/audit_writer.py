@@ -58,17 +58,59 @@ class AuditWriter:
             "total_institutional_decisions": 0,
             "decisions_by_type": {
                 "buy_insurance": 0,
+                "buy_contents_insurance": 0,
                 "elevate_house": 0,
+                "buyout_program": 0,
                 "relocate": 0,
                 "do_nothing": 0
             },
             "validation_failures": 0,
+            "parse_warnings": 0,  # Separate from rule violations
             "constructs_distribution": {
                 "TP": {"LOW": 0, "MODERATE": 0, "HIGH": 0},
                 "CP": {"LOW": 0, "MODERATE": 0, "HIGH": 0},
                 "SP": {"LOW": 0, "MODERATE": 0, "HIGH": 0},
                 "SC": {"LOW": 0, "MODERATE": 0, "HIGH": 0},
                 "PA": {"NONE": 0, "PARTIAL": 0, "FULL": 0}
+            },
+            # === NEW: Demographic breakdown ===
+            "demographic_breakdown": {
+                "MG_Owner": {"decisions": 0, "actions": {}},
+                "MG_Renter": {"decisions": 0, "actions": {}},
+                "NMG_Owner": {"decisions": 0, "actions": {}},
+                "NMG_Renter": {"decisions": 0, "actions": {}}
+            },
+            # === NEW: PMT interaction matrix ===
+            "pmt_interaction": {
+                "TP_HIGH_CP_HIGH": {"action": 0, "no_action": 0},
+                "TP_HIGH_CP_LOW": {"action": 0, "no_action": 0},
+                "TP_LOW_CP_HIGH": {"action": 0, "no_action": 0},
+                "TP_LOW_CP_LOW": {"action": 0, "no_action": 0}
+            },
+            # === NEW: Institutional agent summary ===
+            "institutional_summary": {
+                "insurance": {
+                    "decisions": [],  # List of {year, decision, rate}
+                    "final_premium_rate": None,
+                    "avg_loss_ratio": None,
+                    "raise_count": 0,
+                    "lower_count": 0,
+                    "maintain_count": 0,
+                    "validation_errors": 0,
+                    "validation_warnings": 0
+                },
+                "government": {
+                    "decisions": [],  # List of {year, decision, rate}
+                    "final_subsidy_rate": None,
+                    "final_mg_adoption": None,
+                    "final_equity_gap": None,
+                    "increase_count": 0,
+                    "decrease_count": 0,
+                    "maintain_count": 0,
+                    "outreach_count": 0,
+                    "validation_errors": 0,
+                    "validation_warnings": 0
+                }
             }
         }
     
@@ -100,9 +142,30 @@ class AuditWriter:
         # Update construct distribution
         self._update_construct_stats(output)
         
-        # Track validation failures
+        # === NEW: Update demographic breakdown ===
+        demo_key = f"{'MG' if output.mg else 'NMG'}_{output.tenure.title()}"
+        if demo_key in self.summary["demographic_breakdown"]:
+            demo = self.summary["demographic_breakdown"][demo_key]
+            demo["decisions"] += 1
+            demo["actions"][skill] = demo["actions"].get(skill, 0) + 1
+        
+        # === NEW: Update PMT interaction matrix ===
+        tp_cat = "HIGH" if output.tp_level == "HIGH" else "LOW"
+        cp_cat = "HIGH" if output.cp_level == "HIGH" else "LOW"
+        pmt_key = f"TP_{tp_cat}_CP_{cp_cat}"
+        if pmt_key in self.summary["pmt_interaction"]:
+            is_action = skill not in ["do_nothing"]
+            action_key = "action" if is_action else "no_action"
+            self.summary["pmt_interaction"][pmt_key][action_key] += 1
+        
+        # Track validation failures (distinguish parse errors from rule violations)
         if not output.validated:
-            self.summary["validation_failures"] += 1
+            # Check if it's a parse failure or rule violation
+            has_rule_violation = any(err.startswith("R") for err in output.validation_errors)
+            if has_rule_violation:
+                self.summary["validation_failures"] += 1
+            else:
+                self.summary["parse_warnings"] += 1
         
         # Build trace
         trace = {
@@ -167,10 +230,42 @@ class AuditWriter:
         self, 
         output: InsuranceOutput, 
         agent_id: str = "InsuranceCo",
-        state: Optional[Dict[str, Any]] = None
+        state: Optional[Dict[str, Any]] = None,
+        validation_results: Optional[list] = None
     ) -> None:
-        """Write insurance agent decision trace."""
+        """Write insurance agent decision trace with summary tracking."""
         self.summary["total_institutional_decisions"] += 1
+        
+        # Update institutional summary
+        ins_summary = self.summary["institutional_summary"]["insurance"]
+        ins_summary["decisions"].append({
+            "year": output.year,
+            "decision": output.decision,
+            "rate": state.get("premium_rate") if state else None,
+            "loss_ratio": state.get("loss_ratio") if state else None
+        })
+        
+        # Count by decision type
+        dec = output.decision.upper() if output.decision else ""
+        if "RAISE" in dec:
+            ins_summary["raise_count"] += 1
+        elif "LOWER" in dec:
+            ins_summary["lower_count"] += 1
+        else:
+            ins_summary["maintain_count"] += 1
+        
+        # Track validation results
+        if validation_results:
+            for r in validation_results:
+                if r.level.value == "ERROR":
+                    ins_summary["validation_errors"] += 1
+                else:
+                    ins_summary["validation_warnings"] += 1
+        
+        # Update final state
+        if state:
+            ins_summary["final_premium_rate"] = state.get("premium_rate")
+            ins_summary["avg_loss_ratio"] = state.get("loss_ratio")
         
         trace = {
             "timestamp": datetime.now().isoformat(),
@@ -182,7 +277,8 @@ class AuditWriter:
             "adjustment_pct": output.adjustment_pct,
             "justification": output.justification,
             "validated": output.validated,
-            "state": state or {}
+            "state": state or {},
+            "validation_issues": [r.message for r in (validation_results or [])]
         }
         
         with open(self.institutional_file, 'a', encoding='utf-8') as f:
@@ -192,10 +288,46 @@ class AuditWriter:
         self, 
         output: GovernmentOutput, 
         agent_id: str = "Government",
-        state: Optional[Dict[str, Any]] = None
+        state: Optional[Dict[str, Any]] = None,
+        validation_results: Optional[list] = None
     ) -> None:
-        """Write government agent decision trace."""
+        """Write government agent decision trace with summary tracking."""
         self.summary["total_institutional_decisions"] += 1
+        
+        # Update institutional summary
+        gov_summary = self.summary["institutional_summary"]["government"]
+        gov_summary["decisions"].append({
+            "year": output.year,
+            "decision": output.decision,
+            "rate": state.get("subsidy_rate") if state else None,
+            "mg_adoption": state.get("mg_adoption_rate") if state else None,
+            "equity_gap": state.get("equity_gap") if state else None
+        })
+        
+        # Count by decision type
+        dec = output.decision.upper() if output.decision else ""
+        if "INCREASE" in dec:
+            gov_summary["increase_count"] += 1
+        elif "DECREASE" in dec:
+            gov_summary["decrease_count"] += 1
+        elif "OUTREACH" in dec:
+            gov_summary["outreach_count"] += 1
+        else:
+            gov_summary["maintain_count"] += 1
+        
+        # Track validation results
+        if validation_results:
+            for r in validation_results:
+                if r.level.value == "ERROR":
+                    gov_summary["validation_errors"] += 1
+                else:
+                    gov_summary["validation_warnings"] += 1
+        
+        # Update final state
+        if state:
+            gov_summary["final_subsidy_rate"] = state.get("subsidy_rate")
+            gov_summary["final_mg_adoption"] = state.get("mg_adoption_rate")
+            gov_summary["final_equity_gap"] = state.get("equity_gap")
         
         trace = {
             "timestamp": datetime.now().isoformat(),
@@ -208,7 +340,8 @@ class AuditWriter:
             "priority": output.priority,
             "justification": output.justification,
             "validated": output.validated,
-            "state": state or {}
+            "state": state or {},
+            "validation_issues": [r.message for r in (validation_results or [])]
         }
         
         with open(self.institutional_file, 'a', encoding='utf-8') as f:

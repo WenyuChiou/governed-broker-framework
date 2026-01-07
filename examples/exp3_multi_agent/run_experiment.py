@@ -40,6 +40,7 @@ from examples.exp3_multi_agent.parsers import (
     HouseholdOutput
 )
 from examples.exp3_multi_agent.validators import HouseholdValidator
+from validators.institutional_validator import InstitutionalValidator
 from examples.exp3_multi_agent.audit_writer import AuditWriter, AuditConfig
 from examples.exp3_multi_agent.agents import HouseholdAgent
 from examples.exp3_multi_agent.environment import SettlementModule
@@ -47,31 +48,40 @@ from examples.exp3_multi_agent.environment import SettlementModule
 # V3 Unified Memory Interface
 from examples.exp3_multi_agent.memory_helpers import add_memory
 
-# Configuration
-SIMULATION_YEARS = 10
+import argparse
+
+# Configuration (defaults)
+DEFAULT_YEARS = 10
 OUTPUT_DIR = "examples/exp3_multi_agent/results"
 SEED = 42
-USE_LLM = False  # Set to True to use Ollama, False for heuristic
+DEFAULT_MODEL = "llama3.2:3b"
 
+# Global config placeholder (will be set in main)
+CONFIG = {
+    "years": DEFAULT_YEARS,
+    "use_llm": False,
+    "model": DEFAULT_MODEL,
+    "output_dir": OUTPUT_DIR
+}
 
 # =============================================================================
 # LLM CLIENT (Ollama)
 # =============================================================================
 
-def call_llm(prompt: str, model: str = "llama3.2:3b") -> Optional[str]:
+def call_llm(prompt: str) -> Optional[str]:
     """
     Call Ollama LLM for response.
     
     Returns None if LLM unavailable (falls back to heuristic).
     """
-    if not USE_LLM:
+    if not CONFIG["use_llm"]:
         return None
     
     try:
         import requests
         response = requests.post(
             "http://localhost:11434/api/generate",
-            json={"model": model, "prompt": prompt, "stream": False},
+            json={"model": CONFIG["model"], "prompt": prompt, "stream": False},
             timeout=30  # Reduced timeout
         )
         if response.status_code == 200:
@@ -95,8 +105,14 @@ def generate_heuristic_response(agent: HouseholdAgent, year: int, context: dict)
     Generate heuristic response when LLM unavailable.
     
     Simulates PMT-based decision making.
+    Aligned with skill_registry.yaml mappings:
+    - Owner (non-elevated): 1=buy_insurance, 2=elevate_house, 3=buyout_program, 4=do_nothing
+    - Owner (elevated): 1=buy_insurance, 2=buyout_program, 3=do_nothing
+    - Renter: 1=buy_contents_insurance, 2=relocate, 3=do_nothing
     """
     s = agent.state
+    is_owner = s.tenure == "Owner"
+    is_elevated = s.elevated
     
     # Determine construct levels based on state
     tp = "HIGH" if s.cumulative_damage > s.property_value * 0.1 else ("MODERATE" if s.cumulative_damage > 0 else "LOW")
@@ -105,17 +121,34 @@ def generate_heuristic_response(agent: HouseholdAgent, year: int, context: dict)
     sc = "MODERATE"
     pa = "FULL" if s.elevated and s.has_insurance else ("PARTIAL" if s.elevated or s.has_insurance else "NONE")
     
-    # Determine decision
+    # Determine decision based on agent type
     if s.relocated:
-        decision, num = "do_nothing", 4 if s.tenure == "Owner" else 3
+        # Already relocated - do nothing
+        if is_owner:
+            decision, num = "do_nothing", 3 if is_elevated else 4
+        else:
+            decision, num = "do_nothing", 3
     elif tp == "HIGH" and not s.has_insurance:
-        decision, num = "buy_insurance", 1
-    elif tp in ["MODERATE", "HIGH"] and not s.elevated and s.tenure == "Owner" and sp == "HIGH":
+        # High threat, no insurance -> buy insurance
+        if is_owner:
+            decision, num = "buy_insurance", 1
+        else:
+            decision, num = "buy_contents_insurance", 1
+    elif tp in ["MODERATE", "HIGH"] and not is_elevated and is_owner and sp == "HIGH":
+        # Moderate+ threat, not elevated, owner with good subsidy -> elevate
         decision, num = "elevate_house", 2
     elif s.cumulative_damage > s.property_value * 0.5 and s.income < 40000:
-        decision, num = "relocate", 3 if s.tenure == "Owner" else 2
+        # Severe cumulative damage, low income -> leave
+        if is_owner:
+            decision, num = "buyout_program", 2 if is_elevated else 3
+        else:
+            decision, num = "relocate", 2
     else:
-        decision, num = "do_nothing", 4 if s.tenure == "Owner" and not s.elevated else 3
+        # Default to do nothing
+        if is_owner:
+            decision, num = "do_nothing", 3 if is_elevated else 4
+        else:
+            decision, num = "do_nothing", 3
     
     justification = f"Based on {tp} threat and {cp} coping ability, {decision} is appropriate."
     
@@ -134,23 +167,28 @@ Justification: {justification}
 # MAIN SIMULATION
 # =============================================================================
 
+
 def run_simulation():
     """Main simulation loop with full integration."""
     print(f"=" * 60)
     print(f"Exp3 Multi-Agent Simulation")
-    print(f"Years: {SIMULATION_YEARS}, LLM: {'Enabled' if USE_LLM else 'Heuristic'}")
+    print(f"Years: {CONFIG['years']}, LLM: {'Enabled (' + CONFIG['model'] + ')' if CONFIG['use_llm'] else 'Heuristic'}")
     print(f"=" * 60)
     
     # Initialize
     households, govs, ins = initialize_all_agents(seed=SEED)
     settlement = SettlementModule(seed=SEED)
     validator = HouseholdValidator()
-    audit = AuditWriter(AuditConfig(output_dir=OUTPUT_DIR))
+    inst_validator = InstitutionalValidator()  # NEW: Institutional validator
+    audit = AuditWriter(AuditConfig(output_dir=CONFIG["output_dir"]))
     
     print(f"Loaded {len(households)} household agents")
     print(f"Governments: {list(govs.keys())}")
     
-    for year in range(1, SIMULATION_YEARS + 1):
+    # Track flood history for government decisions
+    prev_year_flood = False
+    
+    for year in range(1, CONFIG['years'] + 1):
         print(f"\n{'='*40}")
         print(f"YEAR {year}")
         print(f"{'='*40}")
@@ -178,10 +216,125 @@ def run_simulation():
             gov.reset_annual_budget(year)
         ins.reset_annual_metrics()
         
+        # --- Insurance Agent Decision ---
+        ins_state = ins.to_dict()
+        prev_premium_rate = ins.state.premium_rate  # Track for validation
+        ins_history = ins.memory.retrieve(top_k=3, current_year=year)
+        ins_history_text = [m[0] if isinstance(m, tuple) else str(m) for m in ins_history]
+        
+        if CONFIG["use_llm"]:
+            ins_prompt = build_insurance_prompt(ins_state, ins_history_text)
+            ins_response = call_llm(ins_prompt)
+            if ins_response:
+                ins_output = parse_insurance_response(ins_response, year)
+                # Execute decision
+                if ins_output.decision == "RAISE":
+                    adj = ins_output.adjustment_pct / 100
+                    ins.state.premium_rate *= (1 + adj)
+                elif ins_output.decision == "LOWER":
+                    adj = ins_output.adjustment_pct / 100
+                    ins.state.premium_rate *= (1 - adj)
+                
+                # Validate decision
+                val_results = inst_validator.validate_insurance(
+                    agent_id=ins.state.id,
+                    decision=ins_output.decision,
+                    premium_rate=ins.state.premium_rate,
+                    prev_premium_rate=prev_premium_rate,
+                    solvency=ins_state.get("solvency", 0.5)
+                )
+                
+                # Log to memory
+                ins.memory.add_episodic(
+                    f"Year {year}: {ins_output.decision} premium by {ins_output.adjustment_pct}%",
+                    importance=0.7 if ins_output.decision != "MAINTAIN" else 0.3,
+                    year=year, tags=["llm", "decision"]
+                )
+                # Write audit trace with validation
+                audit.write_insurance_trace(ins_output, ins.state.id, ins.to_dict(), val_results)
+        else:
+            # Rule-based fallback (existing logic in agent)
+            decision = ins.decide_strategy(year)
+            # Validate rule-based decision
+            val_results = inst_validator.validate_insurance(
+                agent_id="InsuranceCo",
+                decision=decision,
+                premium_rate=ins.state.premium_rate,
+                prev_premium_rate=prev_premium_rate,
+                solvency=0.5  # Default for rule-based
+            )
+        
+        # --- Government Agent Decisions ---
+        flood_prev = year > 1 and prev_year_flood
+        for gov_id, gov in govs.items():
+            prev_subsidy_rate = gov.state.subsidy_rate  # Track for validation
+            gov_state = {
+                "annual_budget": gov.state.annual_budget,
+                "budget_remaining": gov.state.budget_remaining,
+                "subsidy_rate": gov.state.subsidy_rate,
+                "mg_adoption_rate": gov.state.mg_adoption_rate,
+                "nmg_adoption_rate": gov.state.nmg_adoption_rate
+            }
+            gov_events = gov.memory.retrieve(top_k=3, current_year=year)
+            gov_events_text = [m[0] if isinstance(m, tuple) else str(m) for m in gov_events]
+            
+            if CONFIG["use_llm"]:
+                gov_prompt = build_government_prompt(gov_state, gov_events_text)
+                gov_response = call_llm(gov_prompt)
+                if gov_response:
+                    gov_output = parse_government_response(gov_response, year)
+                    # Execute decision
+                    if gov_output.decision == "INCREASE":
+                        adj = gov_output.adjustment_pct / 100
+                        gov.state.subsidy_rate = min(0.95, gov.state.subsidy_rate + adj)
+                    elif gov_output.decision == "DECREASE":
+                        adj = gov_output.adjustment_pct / 100
+                        gov.state.subsidy_rate = max(0.20, gov.state.subsidy_rate - adj)
+                    
+                    # Validate decision
+                    val_results = inst_validator.validate_government(
+                        agent_id=gov.state.id,
+                        decision=gov_output.decision,
+                        subsidy_rate=gov.state.subsidy_rate,
+                        prev_subsidy_rate=prev_subsidy_rate,
+                        budget_used=1 - (gov.state.budget_remaining / gov.state.annual_budget),
+                        mg_adoption=gov.state.mg_adoption_rate,
+                        nmg_adoption=gov.state.nmg_adoption_rate
+                    )
+                    
+                    # Log to memory
+                    gov.memory.add_episodic(
+                        f"Year {year}: {gov_output.decision} subsidy by {gov_output.adjustment_pct}%",
+                        importance=0.7 if gov_output.decision != "MAINTAIN" else 0.3,
+                        year=year, tags=["llm", "decision"]
+                    )
+                    # Write audit trace with validation
+                    audit.write_government_trace(gov_output, gov.state.id, gov_state, val_results)
+            else:
+                # Rule-based fallback
+                decision = gov.decide_policy(year, flood_prev)
+                # Validate rule-based decision
+                val_results = inst_validator.validate_government(
+                    agent_id=gov_id,
+                    decision=decision,
+                    subsidy_rate=gov.state.subsidy_rate,
+                    prev_subsidy_rate=prev_subsidy_rate,
+                    budget_used=0.0,
+                    mg_adoption=gov.state.mg_adoption_rate,
+                    nmg_adoption=gov.state.nmg_adoption_rate
+                )
+        
         # =============================================
         # Phase 2: Household Decisions
         # =============================================
-        actions = {"do_nothing": 0, "buy_insurance": 0, "elevate_house": 0, "relocate": 0}
+        actions = {
+            "do_nothing": 0, 
+            "buy_insurance": 0, 
+            "buy_contents_insurance": 0,
+            "elevate_house": 0, 
+            "relocate": 0,
+            "buyout_program": 0
+        }
         validation_warnings = 0
         validation_errors = 0
         
@@ -209,7 +362,11 @@ def run_simulation():
                 "has_insurance": hh.state.has_insurance,
                 "cumulative_damage": hh.state.cumulative_damage,
                 "income": hh.state.income,
-                "property_value": hh.state.property_value
+                "property_value": hh.state.property_value,
+                # Demographics
+                "generations": hh.state.generations_in_area,
+                "household_size": hh.state.household_size,
+                "has_vehicle": hh.state.has_vehicle
             }
             
             # Get memory
@@ -283,6 +440,9 @@ def run_simulation():
         cum_elevated = sum(1 for h in households if h.state.elevated)
         cum_relocated = sum(1 for h in households if h.state.relocated)
         print(f"Cumulative: Insured={cum_insured}, Elevated={cum_elevated}, Relocated={cum_relocated}")
+        
+        # Update flood history for next year's government decisions
+        prev_year_flood = report.flood_occurred
     
     # =============================================
     # Finalize
@@ -297,4 +457,15 @@ def run_simulation():
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Run Exp3 Multi-Agent Simulation")
+    parser.add_argument("--years", type=int, default=DEFAULT_YEARS, help="Number of years to simulate")
+    parser.add_argument("--use-llm", action="store_true", help="Enable LLM (Ollama) execution")
+    parser.add_argument("--model", type=str, default=DEFAULT_MODEL, help="Ollama model name")
+    
+    args = parser.parse_args()
+    
+    CONFIG["years"] = args.years
+    CONFIG["use_llm"] = args.use_llm
+    CONFIG["model"] = args.model
+    
     run_simulation()
