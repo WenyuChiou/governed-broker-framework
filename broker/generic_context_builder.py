@@ -163,36 +163,61 @@ class BaseAgentContextBuilder(ContextBuilder):
             memory=memory_str
         )
     
-    def _format_state(self, state: Dict[str, float]) -> str:
-        """Format normalized state for prompt."""
-        lines = []
-        for param, value in state.items():
-            # Show as percentage or decimal
-            lines.append(f"- {param}: {value:.2f}")
-        return "\n".join(lines) if lines else "No state"
+    def _format_state(self, state: Dict[str, float], compact: bool = True) -> str:
+        """Format normalized state. Compact: inline, Verbose: multiline."""
+        if compact:
+            # Add semantic labels: LOW(<0.3), MED(0.3-0.7), HIGH(>0.7)
+            return " ".join(
+                f"{k}={v:.2f}({self._semantic(v)})" for k, v in state.items()
+            )
+        return "\n".join(f"- {k}: {v:.2f}" for k, v in state.items()) or "No state"
     
-    def _format_perception(self, perception: Dict[str, float]) -> str:
+    def _semantic(self, v: float) -> str:
+        """Convert 0-1 value to semantic label."""
+        if v < 0.3: return "L"
+        if v > 0.7: return "H"
+        return "M"
+    
+    def _format_perception(self, perception: Dict[str, float], compact: bool = True) -> str:
         """Format perception signals."""
-        lines = []
-        for signal, value in perception.items():
-            lines.append(f"- {signal}: {value:.2f}")
-        return "\n".join(lines) if lines else "No external signals"
+        if compact:
+            return " ".join(f"{k}={v:.2f}" for k, v in perception.items()) or "-"
+        return "\n".join(f"- {k}: {v:.2f}" for k, v in perception.items()) or "No signals"
     
-    def _format_objectives(self, objectives: Dict[str, Dict]) -> str:
+    def _format_objectives(self, objectives: Dict[str, Dict], compact: bool = True) -> str:
         """Format objectives with status."""
+        if compact:
+            # Show: name=current(status) where status is ✓=in_range, ✗=out
+            return " ".join(
+                f"{n}={info.get('current',0):.2f}{'✓' if info.get('in_range') else '✗'}"
+                for n, info in objectives.items()
+            ) or "-"
+        # Verbose format
         lines = []
         for name, info in objectives.items():
             status = "✓" if info.get("in_range") else "✗"
             current = info.get("current", 0)
             target = info.get("target", (0, 1))
-            lines.append(f"- {name}: {current:.2f} (target: {target[0]:.2f}-{target[1]:.2f}) {status}")
-        return "\n".join(lines) if lines else "No objectives defined"
+            lines.append(f"- {name}: {current:.2f} ({target[0]:.2f}-{target[1]:.2f}) {status}")
+        return "\n".join(lines) if lines else "No objectives"
 
 
-# Default prompt template for any agent type
-DEFAULT_PROMPT_TEMPLATE = """You are {agent_name}, a {agent_type} agent.
+# Compact token-efficient prompt template
+DEFAULT_PROMPT_TEMPLATE = """[{agent_type}:{agent_name}]
 
-=== CURRENT STATE (0-1 scale) ===
+STATE:{state}
+OBS:{perception}
+MEM:{memory}
+OBJ:{objectives}
+ACT:{skills}
+
+DECIDE: action, adj(0-0.15), reason(1line)"""
+
+
+# Verbose template for debugging/analysis
+VERBOSE_PROMPT_TEMPLATE = """You are {agent_name}, a {agent_type} agent.
+
+=== STATE (0-1) ===
 {state}
 
 === OBSERVATIONS ===
@@ -204,16 +229,10 @@ DEFAULT_PROMPT_TEMPLATE = """You are {agent_name}, a {agent_type} agent.
 === OBJECTIVES ===
 {objectives}
 
-=== AVAILABLE ACTIONS ===
+=== ACTIONS ===
 {skills}
 
-=== YOUR TASK ===
-Based on your current state, memory, and objectives, decide your next action.
-
-=== OUTPUT FORMAT ===
-Decision: [one of the available actions]
-Adjustment: [0.00-0.15 if applicable]
-Justification: [brief explanation]
+DECIDE: action, adjustment(0.00-0.15), justification
 """
 
 
