@@ -341,6 +341,58 @@ def create_llm_invoke(model: str):
 
 
 # =============================================================================
+# GOVERNANCE LAYER SETUP
+# =============================================================================
+
+def setup_governance(
+    simulation: FloodSimulation,
+    context_builder: FloodContextBuilder,
+    model_name: str,
+    output_dir: Path
+) -> SkillBrokerEngine:
+    """
+    Initialize the Governance Layer (Registry, Adapter, Validators, Audit).
+    
+    This function encapsulates all "Governed Broker" settings, separating them from:
+    1. The Simulation (World)
+    2. The Experiment Loop (Control)
+    """
+    # 1. Skill Registry (Loads domains-specific skills)
+    skill_registry = SkillRegistry()
+    registry_path = Path(__file__).parent / "skill_registry.yaml"
+    skill_registry.register_from_yaml(registry_path)
+    print(f"✅ Loaded Skill Registry from {registry_path.name}")
+    
+    # 2. Model Adapter (Interprets LLM output for 'household' agents)
+    # Uses broker/agent_types.yaml by default for fuzzy matching & aliasing
+    model_adapter = UnifiedAdapter(agent_type="household")
+    
+    # 3. Validator (Enforces coherence & constraints)
+    # Uses broker/agent_types.yaml for rules (e.g., rate_bounds, PMT coherence)
+    validators = AgentValidator()
+    
+    # 4. Audit Writer (Logs traces for verification)
+    audit_config = GenericAuditConfig(
+        output_dir=str(output_dir),
+        experiment_name=f"v2_{model_name.replace(':', '_')}"
+    )
+    audit_writer = SkillAuditWriter(audit_config)
+    
+    # 5. Broker Engine (Orchestrates the layers)
+    broker = SkillBrokerEngine(
+        skill_registry=skill_registry,
+        model_adapter=model_adapter,
+        validator=validators,
+        simulation_engine=simulation,
+        context_builder=context_builder,
+        audit_writer=audit_writer,
+        max_retries=2
+    )
+    
+    return broker
+
+
+# =============================================================================
 # MAIN EXPERIMENT
 # =============================================================================
 
@@ -353,36 +405,16 @@ def run_experiment(args):
     print(f"Agents: {args.num_agents}, Years: {args.num_years}")
     print("=" * 60)
     
-    # Initialize simulation
+    # Initialize simulation (World Layer)
     sim = FloodSimulation(num_agents=args.num_agents, seed=args.seed)
-    context_builder = FloodContextBuilder(sim)
+    context_builder = FloodContextBuilder(sim)  # Observation Layer
     
-    # Initialize skill governance
-    skill_registry = SkillRegistry()
-    skill_registry.register_from_yaml(Path(__file__).parent / "skill_registry.yaml")
-    
-    model_adapter = UnifiedAdapter(agent_type="household")
-    validators = AgentValidator()
-    
-    # Output directory
+    # Initialize output directory
     output_dir = Path(args.output_dir) / args.model.replace(":", "_")
     output_dir.mkdir(parents=True, exist_ok=True)
     
-    audit_writer = SkillAuditWriter(GenericAuditConfig(
-        output_dir=str(output_dir),
-        experiment_name=f"v2_{args.model.replace(':', '_')}"
-    ))
-    
-    # Create broker engine
-    broker = SkillBrokerEngine(
-        skill_registry=skill_registry,
-        model_adapter=model_adapter,
-        validator=validators,
-        simulation_engine=sim,
-        context_builder=context_builder,
-        audit_writer=audit_writer,
-        max_retries=2
-    )
+    # Initialize Governance Layer (Broker)
+    broker = setup_governance(sim, context_builder, args.model, output_dir)
     
     # LLM
     llm_invoke = create_llm_invoke(args.model)
@@ -473,7 +505,10 @@ def run_experiment(args):
         print(f"[Year {year}] Log saved with {len(logs)} entries")
     
     # Finalize
-    summary = audit_writer.finalize()
+    if broker.audit_writer:
+        summary = broker.audit_writer.finalize()
+    else:
+        summary = {}
     broker_stats = broker.get_stats()
     
     print("\n" + "=" * 60)
