@@ -22,7 +22,6 @@ The Governed Broker Framework provides a **skill-governed architecture** for bui
 - **Multi-Stage Validation**: Configurable validators ensure admissibility, feasibility, constraints, safety, and consistency
 - **Multi-Agent Support**: Supports heterogeneous agent types with different skills and eligibility rules
 - **Multi-Level State**: Individual, Social, Shared, and Institutional state layers with access control
-- **Cognitive Memory**: Working and Episodic memory with active retrieval and passive storage
 - **Extensible LLM Providers**: Default Ollama, extensible to OpenAI, Anthropic, etc.
 - **Full Traceability**: Complete audit trail for reproducibility
 
@@ -120,62 +119,33 @@ This ensures LLM only proposes registered skills, which are then validated by th
 
 ---
 
-## Architecture Overview
+## Architecture
 
-The framework provides two primary modes of operation, each with a dedicated architecture diagram in the `docs/` folder.
+### Single-Agent Mode
 
-### 1. Single-Agent Mode (`examples/v2_skill_governed/`)
+![Single-Agent Architecture](docs/single_agent_architecture.png)
 
-Suitable for detailed study of individual agent behavior against a specific hazard scenario.
+**Flow**: Environment → Context Builder → LLM → Model Adapter → Skill Broker Engine → Validators → Executor → State
 
-![Single Agent Architecture](docs/single_agent_architecture.png)
+#### V3 with Memory Layer
 
-*   **Flow**:
-    1.  **Simulation Loop**: Iterates through time steps (e.g., years).
-    2.  **Environment**: Calculates hazard exposure (e.g., flood depth) and financial impacts.
-    3.  **Agent Logic**: The `LLM Agent` (blue box) receives a prompt via the `Context Builder`.
-    4.  **Governed Broker**: The `Context Builder` constructs a bounded prompt. The LLM generates a skill proposal. The `Validators` check the proposal against safety and logic rules. If valid, the `Executor` applies the changes to the `Agent State`.
-    5.  **Audit**: All decisions and validation results are logged.
+![Single-Agent V3](docs/single_agent_architecture_v3.png)
 
-### 2. Multi-Agent Mode (`examples/exp3_multi_agent/`)
+**Added**: Memory Layer with `retrieve()` (active) and `add_memory()` (passive) operations.
 
-Designed for analyzing system-wide dynamics, social interactions, and policy impacts.
+### Multi-Agent Mode
 
-![Multi Agent Architecture](docs/multi_agent_architecture.png)
+![Multi-Agent Architecture](docs/multi_agent_architecture.png)
 
-*   **Flow**:
-    1.  **Agent Layer**: Multiple agents (Household, Insurance, Government) operate concurrently.
-    2.  **Governed Broker Layer**: Centralized logic for `Context Building`, `Parsing`, and `Validation` ensures all agents adhere to simulation rules.
-    3.  **State Manager**: Manages `Individual` (private), `Social` (network), `Shared` (environment), and `Institutional` (policy) states.
-    4.  **Interaction**: Agents can observe neighbors (Social State) and react to government policies (Institutional State).
+**Flow**: Agents → LLM (Skill Proposal) → Governed Broker Layer (Context Builder + Validators) → State Manager with four layers: Individual (memory), Social (neighbor observation), Shared (environment), and Institutional (policy rules).
 
----
+#### V3 with Memory & Environment Layers
 
-## Memory & Cognitive Architecture (V3 Features)
+![Multi-Agent V3](docs/multi_agent_architecture_v3.png)
 
-The framework now includes an explicit **Memory Layer** that sits between the Governed Broker and the Simulation State, enhancing agent consistency and learning.
-
-### Memory Components
-*   **Working Memory**: Short-term storage for immediate context (e.g., recent neighbor actions, current year's policy).
-*   **Episodic Memory**: Long-term history of significant events (e.g., past flood damages, claims made, previous decisions).
-
-### Information Flow
-1.  **Active Retrieval (`retrieve()`)**: 
-    - Before making a decision, the **Context Builder** calls `retrieve()` to fetch relevant memories.
-    - *Example*: "Retrieve past 3 years of flood damage and claim success rates."
-    - This data is injected into the **Bounded Context** sent to the LLM.
-
-2.  **Passive Storage (`add_memory()`)**:
-    - After the **Executor** applies a validated skill, it triggers `add_memory()`.
-    - The decision, its outcome, and any validation notes are stored as a new memory trace.
-    - *Example*: "Decision: Elevate House (Year 5). Outcome: Success."
-
-### Enhanced Audit
-The **Audit Writer** captures a holistic trace of the cognitive process:
-*   **Input**: What context/memory was provided?
-*   **Reasoning**: What was the LLM's internal monologue?
-*   **Validation**: Why was a proposal accepted or rejected?
-*   **Execution**: What state changes actually occurred?
+**Added**:
+- **Memory Layer**: Working (neighbor, policy) + Episodic (flood, claim, decision)
+- **Environment Layer**: Pure functions `process(flood|damage|claim|subsidy)`
 
 ---
 
