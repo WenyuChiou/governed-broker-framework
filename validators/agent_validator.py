@@ -188,8 +188,11 @@ class AgentValidator:
                 elif rule.aggregation == "any_true":
                     current_val = 1.0 if any(v > 0.5 for v in vals) else 0.0
             
-            # Check coherence
+            
+            # 1. State-Label Coherence Check (Numeric Constraints)
             is_coherent = True
+            label_matched = False
+            
             if current_val >= rule.threshold:
                 if rule.expected_levels:
                     # Generic inclusion check (works for L, M, H or FULL, PARTIAL, NONE)
@@ -197,6 +200,7 @@ class AgentValidator:
                     for level in rule.expected_levels:
                         if label.startswith(level.upper()):
                             found = True
+                            label_matched = True
                             break
                     if not found:
                         is_coherent = False
@@ -212,6 +216,60 @@ class AgentValidator:
                     value=label,
                     constraint=f"Expected one of {rule.expected_levels} when state >= {rule.threshold}"
                 ))
+
+            # 2. Label-Action Coherence Check (PMT Logic)
+            # If label matches 'when_above' (label_matched=True), check if decision is blocked
+            if label_matched and rule.blocked_skills:
+                 # Normalized decision check
+                current_decision_norm = reasoning.get("decision", "").lower().replace("_", "")
+                
+                for blocked in rule.blocked_skills:
+                    blocked_norm = blocked.lower().replace("_", "")
+                    if blocked_norm in current_decision_norm:
+                        results.append(ValidationResult(
+                            valid=False,
+                            level=ValidationLevel.ERROR, # Strictly reject
+                            rule=f"action_logic_{rule.construct.lower()}",
+                            message=f"Action '{current_decision_norm}' incompatible with high {rule.construct} ({label})",
+                            agent_id=agent_id,
+                            field=rule.construct,
+                            value=current_decision_norm,
+                            constraint=f"Blocked: {rule.blocked_skills} when {rule.construct} is {label}"
+                        ))
+                        break
+
+            # 3. Text-Action Coherence Check (Semantic Constraints)
+            # Checks if specific phrases in reasoning (e.g. "too expensive") contradict decision
+            if rule.trigger_phrases and rule.blocked_skills:
+                # Concatenate all reasoning text to search for triggers
+                full_reasoning = " ".join(str(v) for v in reasoning.values()).lower()
+                
+                triggered = False
+                for phrase in rule.trigger_phrases:
+                    if phrase.lower() in full_reasoning:
+                        triggered = True
+                        break
+                
+                if triggered:
+                    # Normalized decision check
+                    current_decision_norm = reasoning.get("decision", "").lower().replace("_", "")
+                    
+                    for blocked in rule.blocked_skills:
+                        blocked_norm = blocked.lower().replace("_", "")
+                        # Check if decision matches a blocked skill
+                        # (Simple containment check handles aliases roughly, but exact ID match is better if available)
+                        if blocked_norm in current_decision_norm:
+                            results.append(ValidationResult(
+                                valid=False,
+                                level=ValidationLevel.ERROR, # Strictly reject contradictions
+                                rule=f"semantic_{rule.construct.lower()}",
+                                message=rule.message or f"Reasoning contradicts action (claimed '{phrase}')",
+                                agent_id=agent_id,
+                                field=rule.construct,
+                                value=current_decision_norm,
+                                constraint=f"Blocked: {rule.blocked_skills}"
+                            ))
+                            break
             
         return results
     

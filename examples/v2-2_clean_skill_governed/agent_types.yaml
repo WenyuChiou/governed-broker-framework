@@ -46,7 +46,32 @@ household:
     financial_consistency:
       trigger_phrases: ["cannot afford", "too expensive", "no money"]
       blocked_skills: ["elevate_house", "relocate"]
+      trigger_phrases: ["cannot afford", "too expensive", "no money"]
+      blocked_skills: ["elevate_house", "relocate"]
       rejection_reason: "Claims financial constraint but chose expensive action"
+    
+    # Rule 1: High Threat + High Coping => Should NOT Do Nothing
+    urgency_check:
+      construct: TP
+      state_field: flood_threshold # Proxy for susceptibility
+      threshold: 0.7 # High threshold
+      when_above: ["HIGH", "SEVERE"] # If label is High
+      # Logic: Ideally this would check CP too, but for single construct rule:
+      blocked_skills: ["do_nothing"] # Block Do Nothing if TP is High
+      # Since our validator is exclusion-based or coherence-based, we can frame as:
+      # If TP=High, should imply Action. 
+      # Note: Current coherence engine is checking state->label. 
+      # To check label->action, we might need 'blocked_skills' with label condition.
+      # Simplified for now: standard coherence is State -> Label.
+    
+    # Rule 2: Low Threat => Should NOT Relocate
+    overreaction_check:
+      construct: TP
+      threshold: 0.0 # Low state
+      # If label is LOW
+      trigger_phrases: ["low threat", "minimal risk", "safe"]
+      blocked_skills: ["relocate"]
+      message: "Claims low threat but chose extreme action (relocate)"
 
   # Simulation Constants
   simulation:
