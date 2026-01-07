@@ -186,6 +186,8 @@ class SkillBrokerEngine:
                 "timestamp": timestamp,
                 "seed": seed,
                 "agent_id": agent_id,
+                "year": context.get("year"), # Lift to top level
+                "cumulative_state": context.get("cumulative_state"), # Lift to top level
                 "context_hash": context_hash,
                 "memory_pre": memory_pre,
                 "skill_proposal": skill_proposal.to_dict() if skill_proposal else None,
@@ -195,10 +197,9 @@ class SkillBrokerEngine:
                     "mapping": approved_skill.execution_mapping
                 } if approved_skill else None,
                 "execution_result": execution_result.to_dict() if execution_result else None,
-                "approval_status": approved_skill.approval_status if approved_skill else "UNKNOWN",
-                "outcome": outcome.value,
                 "retry_count": retry_count,
-                "decision": approved_skill.skill_name if approved_skill else (skill_proposal.skill_name if skill_proposal else "unknown")
+                "decision": approved_skill.skill_name if approved_skill else (skill_proposal.skill_name if skill_proposal else "unknown"),
+                "input": prompt  # Explicitly log the prompt
             }
             self.audit_writer.write_trace(agent_type, trace_dict, validation_results)
         

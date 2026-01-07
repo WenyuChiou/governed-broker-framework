@@ -290,6 +290,7 @@ class FloodContextBuilder:
             "year": self.simulation.environment.year,
             "subsidy_rate": 0.0, # V2-2 has no subsidy mechanism active?
             "premium_rate": 0.0, # Mock
+            "cumulative_state": agent.get_adaptation_state(), # For audit mapping
             # Mock demographics
             "tenure": tenure,
             "income": income,
@@ -593,7 +594,8 @@ def run_experiment(args):
                 else: # Default decay
                     agent.trust_in_neighbors = max(0.0, agent.trust_in_neighbors - 0.01)
         
-        # PHASE 2: Process decisions for all agents
+        # PHASE 2: Process decisions for active agents
+        agent_actions = {} # Track this year's action for logging
         for agent in active_agents:
             step_counter += 1
             
@@ -605,17 +607,19 @@ def run_experiment(args):
                 seed=args.seed + step_counter,
                 llm_invoke=llm_invoke
             )
-            
-            # Log (aligned with MCP format)
+            agent_actions[agent.id] = result.approved_skill.skill_name if result.approved_skill else "unknown"
+        
+        # Log ALL agents (including relocated ones) after decisions
+        for agent in sim.agents.values():
             logs.append({
                 "agent_id": agent.id,
                 "year": year,
-                "decision": agent.get_adaptation_state(),  # Cumulative adaptation state
-                "raw_skill": result.approved_skill.skill_name if result.approved_skill else None,
-                "outcome": result.outcome.value,
+                "current_action": agent_actions.get(agent.id, "none"), # Action taken this year
+                "cumulative_state": agent.get_adaptation_state(), # Resulting total state
                 "elevated": agent.elevated,
                 "has_insurance": agent.has_insurance,
-                "relocated": agent.relocated
+                "relocated": agent.relocated,
+                "outcome": "SAMPLED"
             })
         
         # Save log after each year (aligned with original LLMABMPMT-Final.py)
