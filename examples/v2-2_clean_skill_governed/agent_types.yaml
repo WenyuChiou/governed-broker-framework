@@ -9,11 +9,9 @@ household:
   
   # Domain Parameters (Simulation-specific)
   parameters:
-    elevation_cost: 150000
-    insurance_cost: 2000
-    relocation_cost: 200000
-    flood_damage_unprotected: 50000
-    flood_damage_elevated: 5000
+    # No cost parameters in original v2 experiment
+    tp_threshold_moderate: 0.05
+    tp_threshold_high: 0.20
   
   # Audit Configuration
   audit:
@@ -49,3 +47,18 @@ household:
       trigger_phrases: ["cannot afford", "too expensive", "no money"]
       blocked_skills: ["elevate_house", "relocate"]
       rejection_reason: "Claims financial constraint but chose expensive action"
+
+  # Simulation Constants
+  simulation:
+    memory_window: 5
+    random_memory_recall_chance: 0.2
+    grant_probability: 0.5
+    num_agents_default: 100
+  
+  # Initial Memory Pool (Past Events)
+  past_events:
+    - "A flood event about 15 years ago caused $500,000 in city-wide damages; my neighborhood was not impacted at all"
+    - "Some residents reported delays when processing their flood insurance claims"
+    - "A few households in the area elevated their homes before recent floods"
+    - "The city previously introduced a program offering elevation support to residents"
+    - "News outlets have reported a possible trend of increasing flood frequency and severity in recent years"

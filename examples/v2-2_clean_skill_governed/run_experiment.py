@@ -38,10 +38,12 @@ from plot_results import plot_adaptation_results
 
 
 # =============================================================================
-# CONSTANTS (aligned with MCP framework / LLMABMPMT-Final.py)
+# CONSTANTS (loaded from config or defaults)
 # =============================================================================
 
-PAST_EVENTS = [
+# These will be loaded from agent_types.yaml at runtime
+# Defaults are provided for standalone testing
+DEFAULT_PAST_EVENTS = [
     "A flood event about 15 years ago caused $500,000 in city-wide damages; my neighborhood was not impacted at all",
     "Some residents reported delays when processing their flood insurance claims",
     "A few households in the area elevated their homes before recent floods",
@@ -49,10 +51,42 @@ PAST_EVENTS = [
     "News outlets have reported a possible trend of increasing flood frequency and severity in recent years"
 ]
 
-MEMORY_WINDOW = 5  # Number of recent memories an agent retains
-RANDOM_MEMORY_RECALL_CHANCE = 0.2  # 20% chance to recall a random past event
-NUM_AGENTS = 100  # For neighbor percentage calculation
-GRANT_PROBABILITY = 0.5  # 50% chance of grant being available
+DEFAULT_MEMORY_WINDOW = 5
+DEFAULT_RANDOM_MEMORY_RECALL_CHANCE = 0.2
+DEFAULT_NUM_AGENTS = 100
+DEFAULT_GRANT_PROBABILITY = 0.5
+
+def load_simulation_config():
+    """Load simulation constants from local agent_types.yaml"""
+    import yaml
+    config_path = Path(__file__).parent / "agent_types.yaml"
+    if config_path.exists():
+        with open(config_path, 'r', encoding='utf-8') as f:
+            config = yaml.safe_load(f)
+        household = config.get("household", {})
+        sim_cfg = household.get("simulation", {})
+        return {
+            "PAST_EVENTS": household.get("past_events", DEFAULT_PAST_EVENTS),
+            "MEMORY_WINDOW": sim_cfg.get("memory_window", DEFAULT_MEMORY_WINDOW),
+            "RANDOM_MEMORY_RECALL_CHANCE": sim_cfg.get("random_memory_recall_chance", DEFAULT_RANDOM_MEMORY_RECALL_CHANCE),
+            "NUM_AGENTS": sim_cfg.get("num_agents_default", DEFAULT_NUM_AGENTS),
+            "GRANT_PROBABILITY": sim_cfg.get("grant_probability", DEFAULT_GRANT_PROBABILITY)
+        }
+    return {
+        "PAST_EVENTS": DEFAULT_PAST_EVENTS,
+        "MEMORY_WINDOW": DEFAULT_MEMORY_WINDOW,
+        "RANDOM_MEMORY_RECALL_CHANCE": DEFAULT_RANDOM_MEMORY_RECALL_CHANCE,
+        "NUM_AGENTS": DEFAULT_NUM_AGENTS,
+        "GRANT_PROBABILITY": DEFAULT_GRANT_PROBABILITY
+    }
+
+# Load config at module level
+_SIM_CONFIG = load_simulation_config()
+PAST_EVENTS = _SIM_CONFIG["PAST_EVENTS"]
+MEMORY_WINDOW = _SIM_CONFIG["MEMORY_WINDOW"]
+RANDOM_MEMORY_RECALL_CHANCE = _SIM_CONFIG["RANDOM_MEMORY_RECALL_CHANCE"]
+NUM_AGENTS = _SIM_CONFIG["NUM_AGENTS"]
+GRANT_PROBABILITY = _SIM_CONFIG["GRANT_PROBABILITY"]
 
 
 # =============================================================================
@@ -253,18 +287,15 @@ class FloodContextBuilder:
         
         # Options format aligned with MCP framework (but requesting explicit IDs to avoid numeric confusion)
         if context.get("elevated"):
-            options = """1. "buy_insurance": Purchase flood insurance (Lower cost, provides partial financial protection.)
-2. "relocate": Relocate (Eliminates flood risk permanently.)
-3. "do_nothing": Do nothing (No cost, but leaves you exposed.)"""
+            options = """1. "buy_insurance": Purchase flood insurance (Provides financial protection.)
+2. "relocate": Relocate (Eliminates flood risk.)
+3. "do_nothing": Do nothing."""
             valid_choices = '"buy_insurance", "relocate", or "do_nothing"'
         else:
-            params = self.agent_config.get("parameters", {})
-            e_cost = params.get("elevation_cost", 150000)
-            
-            options = f"""1. "buy_insurance": Purchase flood insurance (Lower cost, provides partial financial protection.)
-2. "elevate_house": Elevate house (Cost: ${e_cost:,}, reduces flood risk significantly.)
-3. "relocate": Relocate (Eliminates flood risk permanently.)
-4. "do_nothing": Do nothing (No cost, but leaves you exposed.)"""
+            options = f"""1. "buy_insurance": Purchase flood insurance (Provides financial protection.)
+2. "elevate_house": Elevate house (Reduces flood risk.)
+3. "relocate": Relocate (Eliminates flood risk.)
+4. "do_nothing": Do nothing."""
             valid_choices = '"buy_insurance", "elevate_house", "relocate", or "do_nothing"'
         
         flood_status = (
