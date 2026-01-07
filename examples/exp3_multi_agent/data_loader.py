@@ -198,25 +198,56 @@ def _generate_default_households(seed: int = 42) -> List[HouseholdAgent]:
 
 def initialize_all_agents(
     households_path: Optional[str] = None,
-    seed: int = 42
+    seed: int = 42,
+    use_base_agent: bool = True
 ) -> tuple:
     """
     Initialize all agent types.
+    
+    Args:
+        households_path: Path to household CSV
+        seed: Random seed
+        use_base_agent: If True, use new BaseAgent adapters for institutional agents
     
     Returns:
         (households, governments, insurance)
     """
     households = load_households_from_csv(households_path, seed)
     
-    # Multi-Government
-    governments = {
-        "NJ": GovernmentAgent("Gov_NJ"),
-        "NY": GovernmentAgent("Gov_NY")
-    }
-    governments["NY"].state.annual_budget = 600_000
-    governments["NY"].state.budget_remaining = 600_000
-    
-    # Single Insurance
-    insurance = InsuranceAgent()
+    if use_base_agent:
+        # NEW: Use BaseAgent framework with 0-1 normalized state
+        from examples.exp3_multi_agent.agents.institutional_adapter import (
+            load_exp3_institutional_agents,
+            GovernmentAgentAdapter
+        )
+        
+        # Load from YAML config
+        inst_agents = load_exp3_institutional_agents()
+        
+        # Get insurance adapter
+        insurance = inst_agents.get("InsuranceCo")
+        
+        # For multi-government, use single StateGov for now
+        # TODO: Create per-region configs if needed
+        state_gov = inst_agents.get("StateGov")
+        
+        # Create multi-region governments by cloning adapter
+        governments = {
+            "NJ": state_gov,
+            "NY": state_gov  # Same agent handles both regions for now
+        }
+        
+        print("[INFO] Using BaseAgent framework for institutional agents")
+    else:
+        # LEGACY: Use old hardcoded agents
+        governments = {
+            "NJ": GovernmentAgent("Gov_NJ"),
+            "NY": GovernmentAgent("Gov_NY")
+        }
+        governments["NY"].state.annual_budget = 600_000
+        governments["NY"].state.budget_remaining = 600_000
+        
+        insurance = InsuranceAgent()
     
     return households, governments, insurance
+

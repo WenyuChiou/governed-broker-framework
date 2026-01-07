@@ -59,34 +59,105 @@ class AgentStateProxy:
     Proxy object that provides dict-like access to agent state.
     
     Maps old raw field names to normalized values and back.
+    Handles legacy field names used in run_experiment.py.
     """
+    
+    # Legacy field mappings: old_name -> (new_name, raw_range for denormalization)
+    LEGACY_MAPPINGS = {
+        # Government fields
+        "annual_budget": ("budget_used", (0, 500000), 500000),  # Fixed value
+        "budget_remaining": ("budget_used", (0, 500000), "invert"),  # 500k - spent
+        "subsidy_rate": ("subsidy_rate", (0.20, 0.95), None),  # Direct mapping
+        "mg_priority": None,  # Not in BaseAgent, return True
+        "mg_adoption_rate": ("mg_adoption", (0, 1), None),
+        "nmg_adoption_rate": ("nmg_adoption", (0, 1), None),
+        
+        # Insurance fields
+        "risk_pool": ("solvency", (0, 2000000), None),
+        "premium_rate": ("premium_rate", (0.02, 0.15), None),
+        "premium_collected": None,  # Track externally
+        "claims_paid": None,  # Track externally
+        "total_policies": None,
+        "uptake_rate": ("market_share", (0, 1), None),
+    }
     
     def __init__(self, agent: BaseAgent):
         self._agent = agent
+        # Storage for fields not in BaseAgent
+        self._external = {
+            "mg_priority": True,
+            "premium_collected": 0,
+            "claims_paid": 0,
+            "total_policies": 0,
+        }
     
     def __getattr__(self, name: str):
-        # Try normalized state first
-        if name in self._agent._state_normalized:
-            return self._agent.get_state_raw(name)
-        # Special properties
+        # Special id property
         if name == "id":
             return self._agent.name
-        if name == "loss_ratio":
-            return self._agent.get_state_raw("loss_ratio")
+        
+        # Check external storage
+        if name in self._external:
+            return self._external[name]
+        
+        # Check legacy mappings
+        if name in self.LEGACY_MAPPINGS:
+            mapping = self.LEGACY_MAPPINGS[name]
+            if mapping is None:
+                return self._external.get(name, None)
+            
+            new_name, raw_range, special = mapping
+            normalized = self._agent.get_state(new_name)
+            
+            if special == "invert":
+                # budget_remaining = annual - spent
+                return raw_range[1] - denormalize(normalized, *raw_range)
+            elif special is not None:
+                return special  # Fixed value
+            else:
+                return denormalize(normalized, *raw_range)
+        
+        # Try direct normalized state access
+        if name in self._agent._state_normalized:
+            return self._agent.get_state_raw(name)
+        
         raise AttributeError(f"'{name}' not found in agent state")
     
     def __setattr__(self, name: str, value):
         if name.startswith("_"):
             super().__setattr__(name, value)
-        else:
-            # Find the param config to normalize
-            param_config = next(
-                (p for p in self._agent.config.state_params if p.name == name),
-                None
-            )
-            if param_config:
-                normalized = normalize(value, *param_config.raw_range)
-                self._agent.set_state(name, normalized)
+            return
+        
+        # Check external storage
+        if name in getattr(self, '_external', {}):
+            self._external[name] = value
+            return
+        
+        # Check legacy mappings
+        if name in self.LEGACY_MAPPINGS:
+            mapping = self.LEGACY_MAPPINGS[name]
+            if mapping is None:
+                self._external[name] = value
+                return
+            
+            new_name, raw_range, special = mapping
+            if special == "invert":
+                # Setting budget_remaining -> calculate budget_used
+                spent = raw_range[1] - value
+                normalized = normalize(spent, *raw_range)
+            else:
+                normalized = normalize(value, *raw_range)
+            self._agent.set_state(new_name, normalized)
+            return
+        
+        # Try direct state access
+        param_config = next(
+            (p for p in self._agent.config.state_params if p.name == name),
+            None
+        )
+        if param_config:
+            normalized = normalize(value, *param_config.raw_range)
+            self._agent.set_state(name, normalized)
 
 
 # ============================================================================
