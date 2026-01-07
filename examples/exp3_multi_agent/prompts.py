@@ -290,3 +290,112 @@ def build_government_prompt(state: Dict[str, Any], events: List[str]) -> str:
         nmg_adoption=state.get("nmg_adoption_rate", 0),
         events=events_text
     )
+
+
+# =============================================================================
+# CONTEXT BUILDER INTEGRATION (Token-Efficient)
+# =============================================================================
+
+def build_insurance_prompt_compact(
+    state: Dict[str, Any], 
+    memory: List[str],
+    use_template: bool = True
+) -> str:
+    """
+    Build compact token-efficient insurance prompt.
+    
+    Args:
+        state: Agent state dict
+        memory: Retrieved memory items
+        use_template: If True, use YAML template; else inline compact
+    """
+    if use_template:
+        from broker.generic_context_builder import load_prompt_templates
+        templates = load_prompt_templates()
+        template = templates.get('insurance', INSURANCE_COMPACT)
+    else:
+        template = INSURANCE_COMPACT
+    
+    # Format state with semantic labels
+    def sem(v): return 'L' if v < 0.3 else ('H' if v > 0.7 else 'M')
+    
+    memory_text = "; ".join(memory[-3:]) if memory else "-"
+    
+    return template.format(
+        agent_type="insurance",
+        agent_name="InsuranceCo",
+        state=f"loss_ratio={state.get('loss_ratio',0):.2f}({sem(state.get('loss_ratio',0))}) "
+              f"solvency={state.get('solvency',0.5):.2f}({sem(state.get('solvency',0.5))}) "
+              f"premium={state.get('premium_rate',0.05):.2f}",
+        loss_ratio=state.get('loss_ratio', 0),
+        solvency=state.get('solvency', 0.5),
+        market_share=state.get('market_share', 0.3),
+        perception=f"policies={state.get('total_policies',0)} pool=${state.get('risk_pool',0):,.0f}",
+        memory=memory_text,
+        objectives=f"solvency>0.5 loss_ratio<0.7",
+        skills="RAISE, LOWER, MAINTAIN"
+    )
+
+
+def build_government_prompt_compact(
+    state: Dict[str, Any],
+    events: List[str],
+    use_template: bool = True
+) -> str:
+    """
+    Build compact token-efficient government prompt.
+    """
+    if use_template:
+        from broker.generic_context_builder import load_prompt_templates
+        templates = load_prompt_templates()
+        template = templates.get('government', GOVERNMENT_COMPACT)
+    else:
+        template = GOVERNMENT_COMPACT
+    
+    def sem(v): return 'L' if v < 0.3 else ('H' if v > 0.7 else 'M')
+    
+    budget_pct = state.get("budget_remaining", 500000) / max(state.get("annual_budget", 500000), 1)
+    equity_gap = abs(state.get("mg_adoption_rate", 0) - state.get("nmg_adoption_rate", 0))
+    events_text = "; ".join(events[-3:]) if events else "-"
+    
+    return template.format(
+        agent_type="government",
+        agent_name="StateGov",
+        state=f"budget={budget_pct:.2f}({sem(budget_pct)}) "
+              f"subsidy={state.get('subsidy_rate',0.5):.2f}({sem(state.get('subsidy_rate',0.5))})",
+        budget_remaining=budget_pct,
+        subsidy_rate=state.get('subsidy_rate', 0.5),
+        mg_adoption=state.get('mg_adoption_rate', 0),
+        nmg_adoption=state.get('nmg_adoption_rate', 0),
+        equity_gap=equity_gap,
+        perception=f"mg={state.get('mg_adoption_rate',0):.2f} nmg={state.get('nmg_adoption_rate',0):.2f}",
+        memory=events_text,
+        objectives=f"mg_adopt>0.3 equity_gap<0.2 budget>0.1",
+        skills="INCREASE, DECREASE, MAINTAIN, OUTREACH"
+    )
+
+
+# Compact template fallbacks
+INSURANCE_COMPACT = """[{agent_type}:{agent_name}]
+STATE:{state}
+OBS:{perception}
+MEM:{memory}
+OBJ:{objectives}
+ACT:{skills}
+
+OUTPUT:
+INTERPRET:[1-line financial summary]
+DECIDE:[RAISE/LOWER/MAINTAIN] ADJ:[0-15%] REASON:[1-line]"""
+
+GOVERNMENT_COMPACT = """[{agent_type}:{agent_name}]
+STATE:{state}
+OBS:{perception}
+MEM:{memory}
+OBJ:{objectives}
+EQUITY:gap={equity_gap:.2f}
+ACT:{skills}
+
+OUTPUT:
+INTERPRET:[1-line policy summary]
+DECIDE:[INCREASE/DECREASE/MAINTAIN/OUTREACH] ADJ:[0-15%] PRIORITY:[MG/NMG/ALL] REASON:[1-line]"""
+
