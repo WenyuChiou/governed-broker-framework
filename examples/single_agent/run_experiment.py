@@ -190,18 +190,36 @@ class FloodSimulation(BaseSimulationEngine):
         skill = approved_skill.skill_name
         
         # Normalize skill names (handles aliases from parser/registry)
+        # This handles variations in LLM output and parser extraction
         SKILL_NORMALIZE = {
+            # Insurance variations
             "buy_insurance": "buy_insurance",
             "insurance": "buy_insurance",
+            "flood_insurance": "buy_insurance",
             "FI": "buy_insurance",
+            "1": "buy_insurance",
+            
+            # Elevation variations
             "elevate_house": "elevate_house",
             "elevate": "elevate_house",
+            "elevation": "elevate_house",
             "HE": "elevate_house",
+            "2": "elevate_house",
+            
+            # Relocate variations
             "relocate": "relocate",
+            "relocation": "relocate",
+            "move": "relocate",
+            "leave": "relocate",
             "RL": "relocate",
+            "3": "relocate",
+            
+            # Do nothing variations
             "do_nothing": "do_nothing",
-            "DN": "do_nothing",
             "nothing": "do_nothing",
+            "wait": "do_nothing",
+            "DN": "do_nothing",
+            "4": "do_nothing",
         }
         skill = SKILL_NORMALIZE.get(skill, skill)
         

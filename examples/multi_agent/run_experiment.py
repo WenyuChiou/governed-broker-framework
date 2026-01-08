@@ -19,24 +19,26 @@ import sys
 import os
 import argparse
 from typing import Dict, List, Any, Optional
+from pathlib import Path
 
-sys.path.insert(0, '.')
+# Add framework to path
+FRAMEWORK_PATH = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(FRAMEWORK_PATH))
 
-from examples.exp3_multi_agent.data_loader import initialize_all_agents
+from examples.multi_agent.data_loader import initialize_all_agents
 from broker import GenericAuditWriter, GenericAuditConfig
-from examples.exp3_multi_agent.agents import HouseholdAgent, HouseholdOutput
-from examples.exp3_multi_agent.environment import SettlementModule
-from examples.exp3_multi_agent.broker.memory_helpers import add_memory
+from examples.multi_agent.agents import HouseholdAgent, HouseholdOutput
+from examples.multi_agent.environment import SettlementModule
+from examples.multi_agent.broker.memory_helpers import add_memory
 
 # Consolidated Framework Imports
 from broker.model_adapter import UnifiedAdapter
-# from broker import create_context_builder # Used locally
 from validators.agent_validator import AgentValidator
-from examples.exp3_multi_agent.broker import Exp3ContextBuilder, create_exp3_context_builder
+from examples.multi_agent.broker import Exp3ContextBuilder, create_exp3_context_builder
 
 # Configuration
 DEFAULT_YEARS = 10
-OUTPUT_DIR = "examples/exp3_multi_agent/results"
+OUTPUT_DIR = "examples/multi_agent/results"
 SEED = 42
 DEFAULT_MODEL = "llama3.2:3b"
 
@@ -46,6 +48,70 @@ CONFIG = {
     "model": DEFAULT_MODEL,
     "output_dir": OUTPUT_DIR
 }
+
+# =============================================================================
+# SKILL NORMALIZATION (Reduces hardcoded skill checks)
+# =============================================================================
+
+SKILL_NORMALIZE_INSURANCE = {
+    "RAISE": "raise_premium",
+    "raise_premium": "raise_premium",
+    "raise": "raise_premium",
+    "LOWER": "lower_premium",
+    "lower_premium": "lower_premium",
+    "lower": "lower_premium",
+    "MAINTAIN": "maintain_premium",
+    "maintain_premium": "maintain_premium",
+    "maintain": "maintain_premium",
+}
+
+SKILL_NORMALIZE_GOVERNMENT = {
+    "INCREASE": "increase_subsidy",
+    "increase_subsidy": "increase_subsidy",
+    "increase": "increase_subsidy",
+    "DECREASE": "decrease_subsidy",
+    "decrease_subsidy": "decrease_subsidy",
+    "decrease": "decrease_subsidy",
+    "MAINTAIN": "maintain_subsidy",
+    "maintain_subsidy": "maintain_subsidy",
+    "maintain": "maintain_subsidy",
+    "target_mg_outreach": "target_mg_outreach",
+    "OUTREACH": "target_mg_outreach",
+}
+
+SKILL_NORMALIZE_HOUSEHOLD = {
+    "buy_insurance": "buy_insurance",
+    "insurance": "buy_insurance",
+    "FI": "buy_insurance",
+    "1": "buy_insurance",
+    "elevate_house": "elevate_house",
+    "elevate": "elevate_house",
+    "HE": "elevate_house",
+    "2": "elevate_house",
+    "relocate": "relocate",
+    "relocation": "relocate",
+    "move": "relocate",
+    "RL": "relocate",
+    "3": "relocate",
+    "buyout_program": "buyout_program",
+    "buyout": "buyout_program",
+    "do_nothing": "do_nothing",
+    "nothing": "do_nothing",
+    "DN": "do_nothing",
+    "4": "do_nothing",
+    "buy_contents_insurance": "buy_contents_insurance",
+    "contents": "buy_contents_insurance",
+}
+
+def normalize_skill(skill: str, agent_type: str) -> str:
+    """Normalize skill name based on agent type."""
+    normalizers = {
+        "insurance": SKILL_NORMALIZE_INSURANCE,
+        "government": SKILL_NORMALIZE_GOVERNMENT,
+        "household": SKILL_NORMALIZE_HOUSEHOLD,
+    }
+    norm_map = normalizers.get(agent_type, {})
+    return norm_map.get(skill, skill)
 
 # =============================================================================
 # LLM CLIENT
@@ -207,13 +273,15 @@ def run_simulation():
             prev_state={"premium_rate": prev_premium}
         )
         
-        # Execute (Simplified for Exp3)
-        if prop.skill_name in ["RAISE", "raise_premium"]:
+        # Execute (using normalized skill)
+        norm_skill = normalize_skill(prop.skill_name, "insurance")
+        if norm_skill == "raise_premium":
             adj = prop.reasoning.get("adjustment", 0.05)
             ins.state.premium_rate = min(0.15, ins.state.premium_rate * (1 + adj))
-        elif prop.skill_name in ["LOWER", "lower_premium"]:
+        elif norm_skill == "lower_premium":
             adj = prop.reasoning.get("adjustment", 0.05)
             ins.state.premium_rate = max(0.02, ins.state.premium_rate * (1 - adj))
+        # maintain_premium: no change
 
         # Audit
         trace = {
@@ -252,13 +320,17 @@ def run_simulation():
                 state=gov.get_all_state()
             )
             
-            # Execute
-            if prop.skill_name in ["INCREASE", "increase_subsidy"]:
+            # Execute (using normalized skill)
+            norm_skill = normalize_skill(prop.skill_name, "government")
+            if norm_skill == "increase_subsidy":
                 adj = prop.reasoning.get("adjustment", 0.10)
                 gov.state.subsidy_rate = min(0.95, gov.state.subsidy_rate + adj)
-            elif prop.skill_name in ["DECREASE", "decrease_subsidy"]:
+            elif norm_skill == "decrease_subsidy":
                 adj = prop.reasoning.get("adjustment", 0.10)
                 gov.state.subsidy_rate = max(0.20, gov.state.subsidy_rate - adj)
+            elif norm_skill == "target_mg_outreach":
+                # Special action: direct outreach to MG communities
+                pass  # Additional logic could go here
             
             # Audit
             trace = {
