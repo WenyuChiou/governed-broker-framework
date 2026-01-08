@@ -107,25 +107,115 @@ class UnifiedAdapter(ModelAdapter):
     
     def parse_output(self, raw_output: str, context: Dict[str, Any]) -> Optional[SkillProposal]:
         """
-        Parse LLM output into SkillProposal.
+        Multi-level parsing with graceful fallback.
         
-        Supports all agent types via AGENT_TYPE_CONFIG:
-        - household: Skill/Decision/Final Decision format
-        - insurance: DECIDE: RAISE/LOWER/MAINTAIN format
-        - government: DECIDE: INCREASE/DECREASE/MAINTAIN format
+        Level 1: Strict structured parsing (existing logic)
+        Level 2: Flexible keyword extraction
+        Level 3: Raw text storage with warning
+        
+        Args:
+            raw_output: Raw text output from LLM
+            context: Current context (for skill mapping)
+            
+        Returns:
+            SkillProposal or None if parsing fails
         """
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        # Validation: Ensure raw_output is string
+        if not isinstance(raw_output, str):
+            logger.error(f"Unexpected output type: {type(raw_output)}, forcing to str")
+            raw_output = str(raw_output)
+        
+        if not raw_output or len(raw_output.strip()) == 0:
+            logger.error("Empty raw_output received")
+            raw_output = "[EMPTY OUTPUT]"
+        
         # Apply preprocessor (e.g., remove <think> tags)
         cleaned_output = self.preprocessor(raw_output)
         
         agent_id = context.get("agent_id", "unknown")
-        is_elevated = context.get("is_elevated", False) # LEGACY: unused
         
+        # ===== LEVEL 1: Strict Structured Parsing =====
+        logger.debug(f"[{agent_id}] Attempting Level 1 (strict) parsing")
+        skill_name, reasoning = self._parse_structured(cleaned_output, context)
+        
+        if skill_name:
+            logger.info(f"[{agent_id}] Level 1 parsing succeeded: skill={skill_name}")
+        else:
+            logger.warning(f"[{agent_id}] Level 1 parsing failed (no skill found)")
+        
+        # ===== LEVEL 2: Flexible Keyword Extraction =====
+        if not skill_name:
+            logger.warning(f"[{agent_id}] Attempting Level 2 (flexible) parsing")
+            skill_name = self._extract_skill_flexible(cleaned_output)
+            
+            if skill_name:
+                logger.info(f"[{agent_id}] Level 2 parsing succeeded: skill={skill_name}")
+            else:
+                logger.warning(f"[{agent_id}] Level 2 parsing failed")
+        
+        if not reasoning or (isinstance(reasoning, dict) and len(reasoning) == 0):
+            logger.warning(f"[{agent_id}] No structured reasoning found, attempting flexible extraction")
+            reasoning = self._extract_reasoning_flexible(cleaned_output)
+        
+        # ===== LEVEL 3: Final Fallback =====
+        if not skill_name:
+            default_skill = self.config.get("default_skill", "do_nothing")
+            logger.warning(f"[{agent_id}] All parsing failed, using default: {default_skill}")
+            skill_name = default_skill
+        
+        # CRITICAL: Always preserve raw output
+        if not reasoning or (isinstance(reasoning, dict) and len(reasoning) == 0):
+            logger.warning(f"[{agent_id}] Storing raw output as reasoning (fallback)")
+            reasoning = {
+                "raw": cleaned_output.strip(),
+                "parse_status": "fallback",
+                "parser_version": "three_stage_v1"
+            }
+        elif isinstance(reasoning, str):
+            # Wrap string reasoning in dict for consistency
+            reasoning = {
+                "text": reasoning,
+                "parse_status": "flexible",
+                "parser_version": "three_stage_v1"
+            }
+        else:
+            # Add parse metadata to dict reasoning
+            reasoning["parse_status"] = "structured"
+            reasoning["parser_version"] = "three_stage_v1"
+        
+        # Resolve to canonical ID
+        if skill_name:
+            canonical_skill = self.alias_map.get(skill_name.lower(), skill_name)
+            if canonical_skill != skill_name:
+                logger.debug(f"[{agent_id}] Resolved '{skill_name}' → '{canonical_skill}'")
+            skill_name = canonical_skill
+        
+        return SkillProposal(
+            skill_name=skill_name,
+            agent_id=agent_id,
+            agent_type=self.agent_type,
+            reasoning=reasoning,
+            confidence=1.0,
+            raw_output=cleaned_output
+        )
+    
+    
+    def _parse_structured(self, text: str, context: Dict) -> tuple:
+        """
+        Level 1: Strict structured parsing (existing logic).
+        
+        Returns:
+            (skill_name, reasoning_dict)
+        """
         # Initialize results
         skill_name = None
         reasoning = {}
         adjustment = None
         
-        lines = cleaned_output.strip().split('\n')
+        lines = text.strip().split('\n')
         keywords = self.config.get("decision_keywords", ["decide:", "decision:"])
         
         for line in lines:
@@ -257,6 +347,64 @@ class UnifiedAdapter(ModelAdapter):
             confidence=1.0,
             raw_output=raw_output
         )
+    
+    
+    def _extract_skill_flexible(self, text: str) -> Optional[str]:
+        """
+        Level 2: Flexible skill extraction.
+        
+        Searches for skill names anywhere in text, not just after keywords.
+        Orders by specificity (longest first) to avoid partial matches.
+        """
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        text_lower = text.lower()
+        
+        # Try to find skill names in order of specificity (longest first)
+        for skill in sorted(self.valid_skills, key=len, reverse=True):
+            if skill.lower() in text_lower:
+                logger.info(f"Found skill '{skill}' via flexible matching")
+                return skill
+        
+        return None
+    
+    
+    def _extract_reasoning_flexible(self, text: str) -> Dict[str, Any]:
+        """
+        Level 2: Extract any reasoning-like text.
+        
+        Looks for common reasoning patterns even without strict formatting.
+        """
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        reasoning = {}
+        
+        # Extract sentences that look like reasoning
+        reasoning_patterns = [
+            r"(?:because|since|due to|given that)\s+(.+)",
+            r"(?:i think|i believe|i should)\s+(.+)",
+            r"(?:risk|threat|concern)(?:s)?\s+(?:is|are)\s+(.+)",
+            r"(?:consider|considering)\s+(.+)",
+        ]
+        
+        for pattern in reasoning_patterns:
+            matches = re.findall(pattern, text, re.IGNORECASE)
+            if matches:
+                reasoning["inferred_reason"] = " | ".join(matches[:3])
+                logger.debug(f"Extracted reasoning via pattern")
+                break
+        
+        # If still empty, store first 200 chars as summary
+        if not reasoning:
+            summary = text.strip()[:200]
+            reasoning["summary"] = summary
+            logger.debug(f"No reasoning patterns found, storing summary ({len(summary)} chars)")
+        
+        reasoning["extraction_method"] = "flexible"
+        return reasoning
+    
     
     def format_retry_prompt(self, original_prompt: str, errors: List[str]) -> str:
         """Format retry prompt with validation errors."""
