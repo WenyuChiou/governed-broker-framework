@@ -111,6 +111,11 @@ class FloodSimulation(BaseSimulationEngine):
             flood_df = pd.read_csv(flood_file)
             self.flood_years = sorted(flood_df['Flood_Years'].tolist())
             
+            # Limit number of agents
+            if len(df) > num_agents:
+                df = df.iloc[:num_agents]
+            
+            
             for _, row in df.iterrows():
                 # Parse memory from CSV
                 if 'memory' in row and pd.notna(row['memory']):
@@ -292,19 +297,18 @@ def update_agent_dynamic_context(agent: BaseAgent, environment: SharedState, age
     agent.trust_ins_text = _verbalize_trust(trust_ins)
     agent.trust_neighbors_text = _verbalize_trust(trust_neighbors)
     
-    # Options text
+    # Options text - aligned with LLMABMPMT-Final.py for consistency
     if elevated:
-        agent.options_text = """1. "buy_insurance": Purchase flood insurance (Lower cost, provides partial financial protection.)
-2. "relocate": Relocate (Eliminates flood risk permanently.)
-3. "do_nothing": Do nothing (No cost, but leaves you exposed.)"""
-        agent.valid_choices_text = '"buy_insurance", "relocate", or "do_nothing"'
+        agent.options_text = """1. Buy flood insurance (Lower cost, provides partial financial protection but does not reduce physical damage.)
+2. Relocate (Requires leaving your neighborhood but eliminates flood risk permanently.)
+3. Do nothing (Require no financial investment or effort this year, but it might leave you exposed to future flood damage.)"""
+        agent.valid_choices_text = '1, 2, or 3'
     else:
-        e_cost = agent_config_params.get("elevation_cost", 150000)
-        agent.options_text = f"""1. "buy_insurance": Purchase flood insurance (Lower cost, provides partial financial protection.)
-2. "elevate_house": Elevate house (Cost: ${e_cost:,}, reduces flood risk significantly.)
-3. "relocate": Relocate (Eliminates flood risk permanently.)
-4. "do_nothing": Do nothing (No cost, but leaves you exposed.)"""
-        agent.valid_choices_text = '\"buy_insurance\", \"elevate_house\", \"relocate\", or \"do_nothing\"'
+        agent.options_text = """1. Buy flood insurance (Lower cost, provides partial financial protection but does not reduce physical damage.)
+2. Elevate your house (High upfront cost but can prevent most physical damage.)
+3. Relocate (Requires leaving your neighborhood but eliminates flood risk permanently.)
+4. Do nothing (Require no financial investment or effort this year, but it might leave you exposed to future flood damage.)"""
+        agent.valid_choices_text = '1, 2, 3, or 4'
     
     # Flood status text
     flood_event = getattr(environment, 'flood_event', False)
@@ -368,7 +372,8 @@ def setup_governance(
     simulation: FloodSimulation,
     context_builder: FloodContextBuilder,
     model_name: str,
-    output_dir: Path
+    output_dir: Path,
+    skip_validation: bool = False
 ) -> SkillBrokerEngine:
     """
     Initialize the Governance Layer (Registry, Adapter, Validators, Audit).
@@ -400,7 +405,11 @@ def setup_governance(
     )
     
     # 4. Validator (Enforces coherence & constraints from local config)
-    validators = AgentValidator(config_path=str(local_config_path))
+    if skip_validation:
+        print("⚠️ Validation DISABLED for this run!")
+        validators_list = []
+    else:
+        validators_list = [AgentValidator(config_path=str(local_config_path))]
     
     # 5. Audit Writer (Logs traces - configurable from YAML)
     # Load audit settings from config
@@ -422,7 +431,7 @@ def setup_governance(
     broker = SkillBrokerEngine(
         skill_registry=skill_registry,
         model_adapter=model_adapter,
-        validators=[validators],
+        validators=validators_list,
         simulation_engine=simulation,
         context_builder=context_builder,
         audit_writer=audit_writer,
@@ -463,12 +472,17 @@ def run_experiment(args):
         custom_templates={"household": prompt_template}
     )
     
-    # Initialize output directory
-    output_dir = Path(args.output_dir) / args.model.replace(":", "_")
+    # Initialize output directory (avoid nesting if model already in path)
+    model_suffix = args.model.replace(":", "_")
+    if model_suffix not in str(args.output_dir):
+        output_dir = Path(args.output_dir) / model_suffix
+    else:
+        output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     
     # Initialize Governance Layer (Broker)
-    broker = setup_governance(sim, context_builder, args.model, output_dir)
+    broker = setup_governance(sim, context_builder, args.model, output_dir, 
+                              skip_validation=getattr(args, 'no_validation', False))
     
     # LLM with configurable temperature
     llm_invoke = create_llm_invoke(args.model, args.temperature)
@@ -673,6 +687,8 @@ if __name__ == "__main__":
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--temperature", type=float, default=0.7, help="LLM temperature (0.0-1.0)")
     parser.add_argument("--output-dir", default="results")
+    parser.add_argument("--no-validation", action="store_true", 
+                        help="Skip coherence validation (for comparison testing)")
     
     args = parser.parse_args()
     run_experiment(args)

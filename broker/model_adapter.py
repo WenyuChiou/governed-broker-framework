@@ -88,7 +88,17 @@ class UnifiedAdapter(ModelAdapter):
         
         self.config = parsing_cfg
         self.preprocessor = preprocessor or (lambda x: x)
-        self.valid_skills = valid_skills or set(actions)
+        
+        # Build alias map for canonical ID resolution
+        self.alias_map = {}
+        all_actions = self.agent_config.get(agent_type).get("actions", [])
+        for action in all_actions:
+            action_id = action["id"]
+            self.alias_map[action_id.lower()] = action_id
+            for alias in action.get("aliases", []):
+                self.alias_map[alias.lower()] = action_id
+                
+        self.valid_skills = valid_skills or set(self.alias_map.keys())
     
     def parse_output(self, raw_output: str, context: Dict[str, Any]) -> Optional[SkillProposal]:
         """
@@ -122,10 +132,13 @@ class UnifiedAdapter(ModelAdapter):
                     decision_text = line.split(":", 1)[1].strip() if ":" in line else ""
                     decision_lower = decision_text.lower()
                     
-                    # Try to match a skill from config
-                    for skill in self.valid_skills:
-                        if skill.lower() in decision_lower:
-                            skill_name = skill
+                    # Try to match a skill from alias map (Canonical Resolution)
+                    # Sort candidates by length (descending) to match longest phrases first
+                    # e.g., "elevate house" before "elevate"
+                    candidates = sorted(self.alias_map.keys(), key=len, reverse=True)
+                    for candidate in candidates:
+                        if candidate in decision_lower:
+                            skill_name = self.alias_map[candidate]
                             break
                     break
             

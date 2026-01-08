@@ -1,0 +1,884 @@
+agent_id,year,decision,flood,cumulative_state,elevated,has_insurance,relocated,raw_skill,outcome
+Agent_1,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_2,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_3,1,Only Flood Insurance,False,Only Flood Insurance,False,True,False,buy_insurance,APPROVED
+Agent_4,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_5,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_6,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_7,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_8,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_9,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_10,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_11,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_12,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_13,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_14,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_15,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,RETRY_SUCCESS
+Agent_16,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_17,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_18,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_19,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_20,1,Only House Elevation,False,Only House Elevation,True,False,False,elevate_house,APPROVED
+Agent_21,1,Only Flood Insurance,False,Only Flood Insurance,False,True,False,buy_insurance,APPROVED
+Agent_22,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_23,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_24,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_25,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_26,1,Only House Elevation,False,Only House Elevation,True,False,False,elevate_house,APPROVED
+Agent_27,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_28,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,RETRY_SUCCESS
+Agent_29,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_30,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_31,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_32,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_33,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_34,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_35,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_36,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_37,1,Only Flood Insurance,False,Only Flood Insurance,False,True,False,buy_insurance,APPROVED
+Agent_38,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_39,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_40,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_41,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_42,1,Only House Elevation,False,Only House Elevation,True,False,False,elevate_house,APPROVED
+Agent_43,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_44,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_45,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_46,1,Only House Elevation,False,Only House Elevation,True,False,False,elevate_house,APPROVED
+Agent_47,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_48,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_49,1,Relocate,False,Relocate,False,False,True,relocate,APPROVED
+Agent_50,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_51,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_52,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_53,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_54,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_55,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_56,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_57,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,RETRY_SUCCESS
+Agent_58,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_59,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_60,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_61,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_62,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,RETRY_SUCCESS
+Agent_63,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_64,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_65,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_66,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_67,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_68,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_69,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_70,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,RETRY_SUCCESS
+Agent_71,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_72,1,Only House Elevation,False,Only House Elevation,True,False,False,elevate_house,APPROVED
+Agent_73,1,Only House Elevation,False,Only House Elevation,True,False,False,elevate_house,APPROVED
+Agent_74,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_75,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_76,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_77,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_78,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_79,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_80,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_81,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_82,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_83,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_84,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_85,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_86,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_87,1,Only House Elevation,False,Only House Elevation,True,False,False,elevate_house,APPROVED
+Agent_88,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_89,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_90,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_91,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_92,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_93,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_94,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_95,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_96,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_97,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_98,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_99,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_100,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_1,2,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_2,2,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_3,2,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_4,2,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_5,2,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_6,2,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_7,2,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_8,2,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_9,2,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_10,2,Do Nothing,False,Do Nothing,False,False,False,do_nothing,RETRY_SUCCESS
+Agent_11,2,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_12,2,Do Nothing,False,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_13,2,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_14,2,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_15,2,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_16,2,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_17,2,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_18,2,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_19,2,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_20,2,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_21,2,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_22,2,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_23,2,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_24,2,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_25,2,Only Flood Insurance,False,Only Flood Insurance,False,True,False,buy_insurance,APPROVED
+Agent_26,2,Relocate,False,Relocate,True,False,True,relocate,APPROVED
+Agent_27,2,Do Nothing,False,Do Nothing,False,False,False,do_nothing,RETRY_SUCCESS
+Agent_28,2,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_29,2,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_30,2,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_31,2,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_32,2,Only House Elevation,False,Only House Elevation,True,False,False,elevate_house,APPROVED
+Agent_33,2,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_34,2,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_35,2,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_36,2,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_37,2,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_38,2,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_39,2,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_40,2,Only House Elevation,False,Only House Elevation,True,False,False,elevate_house,APPROVED
+Agent_41,2,Relocate,False,Relocate,False,False,True,relocate,APPROVED
+Agent_42,2,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_43,2,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_44,2,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_45,2,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_46,2,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_47,2,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_48,2,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_50,2,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_51,2,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_52,2,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_53,2,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_54,2,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_55,2,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_56,2,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_57,2,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_58,2,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_59,2,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_60,2,Relocate,False,Relocate,False,False,True,relocate,APPROVED
+Agent_61,2,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_62,2,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_63,2,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_64,2,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_65,2,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_66,2,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_67,2,Do Nothing,False,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_68,2,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_69,2,Only Flood Insurance,False,Only Flood Insurance,False,True,False,buy_insurance,APPROVED
+Agent_70,2,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_71,2,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_72,2,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_73,2,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_74,2,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_75,2,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_76,2,Relocate,False,Relocate,False,False,True,relocate,APPROVED
+Agent_77,2,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_78,2,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_79,2,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_80,2,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_81,2,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_82,2,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_83,2,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_84,2,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_85,2,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_86,2,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_87,2,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_88,2,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_89,2,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_90,2,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_91,2,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_92,2,Relocate,False,Relocate,False,False,True,relocate,APPROVED
+Agent_93,2,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_94,2,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_95,2,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_96,2,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_97,2,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_98,2,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_99,2,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_100,2,Only House Elevation,False,Only House Elevation,True,False,False,elevate_house,APPROVED
+Agent_1,3,Do Nothing,True,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_2,3,Relocate,True,Relocate,False,False,True,relocate,APPROVED
+Agent_3,3,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_4,3,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_5,3,Do Nothing,True,Do Nothing,False,False,False,do_nothing,RETRY_SUCCESS
+Agent_6,3,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_7,3,Do Nothing,True,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_8,3,Only House Elevation,True,Only House Elevation,True,False,False,elevate_house,RETRY_SUCCESS
+Agent_9,3,Do Nothing,True,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_10,3,Only House Elevation,True,Only House Elevation,True,False,False,elevate_house,RETRY_SUCCESS
+Agent_11,3,Only Flood Insurance,True,Only Flood Insurance,False,True,False,buy_insurance,RETRY_SUCCESS
+Agent_12,3,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_13,3,Relocate,True,Relocate,False,False,True,relocate,APPROVED
+Agent_14,3,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_15,3,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_16,3,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_17,3,Only House Elevation,True,Only House Elevation,True,False,False,elevate_house,RETRY_SUCCESS
+Agent_18,3,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_19,3,Do Nothing,True,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_20,3,Both Flood Insurance and House Elevation,True,Both Flood Insurance and House Elevation,True,True,False,buy_insurance,RETRY_SUCCESS
+Agent_21,3,Only Flood Insurance,True,Only Flood Insurance,False,True,False,buy_insurance,RETRY_SUCCESS
+Agent_22,3,Only House Elevation,True,Only House Elevation,True,False,False,elevate_house,APPROVED
+Agent_23,3,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_24,3,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_25,3,Do Nothing,True,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_27,3,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_28,3,Do Nothing,True,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_29,3,Only House Elevation,True,Only House Elevation,True,False,False,elevate_house,RETRY_SUCCESS
+Agent_30,3,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_31,3,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_32,3,Only House Elevation,True,Only House Elevation,True,False,False,do_nothing,UNCERTAIN
+Agent_33,3,Only House Elevation,True,Only House Elevation,True,False,False,elevate_house,APPROVED
+Agent_34,3,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_35,3,Only House Elevation,True,Only House Elevation,True,False,False,elevate_house,APPROVED
+Agent_36,3,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_37,3,Only Flood Insurance,True,Only Flood Insurance,False,True,False,buy_insurance,RETRY_SUCCESS
+Agent_38,3,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_39,3,Do Nothing,True,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_40,3,Only House Elevation,True,Only House Elevation,True,False,False,do_nothing,UNCERTAIN
+Agent_42,3,Only House Elevation,True,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_43,3,Relocate,True,Relocate,False,False,True,relocate,RETRY_SUCCESS
+Agent_44,3,Do Nothing,True,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_45,3,Only Flood Insurance,True,Only Flood Insurance,False,True,False,buy_insurance,RETRY_SUCCESS
+Agent_46,3,Only House Elevation,True,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_47,3,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_48,3,Do Nothing,True,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_50,3,Only Flood Insurance,True,Only Flood Insurance,False,True,False,buy_insurance,RETRY_SUCCESS
+Agent_51,3,Do Nothing,True,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_52,3,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_53,3,Only Flood Insurance,True,Only Flood Insurance,False,True,False,buy_insurance,APPROVED
+Agent_54,3,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_55,3,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_56,3,Do Nothing,True,Do Nothing,False,False,False,do_nothing,RETRY_SUCCESS
+Agent_57,3,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_58,3,Do Nothing,True,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_59,3,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_61,3,Only Flood Insurance,True,Only Flood Insurance,False,True,False,buy_insurance,RETRY_SUCCESS
+Agent_62,3,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_63,3,Only House Elevation,True,Only House Elevation,True,False,False,elevate_house,RETRY_SUCCESS
+Agent_64,3,Do Nothing,True,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_65,3,Only Flood Insurance,True,Only Flood Insurance,False,True,False,buy_insurance,RETRY_SUCCESS
+Agent_66,3,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_67,3,Do Nothing,True,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_68,3,Do Nothing,True,Do Nothing,False,False,False,do_nothing,RETRY_SUCCESS
+Agent_69,3,Do Nothing,True,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_70,3,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_71,3,Do Nothing,True,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_72,3,Only House Elevation,True,Only House Elevation,True,False,False,do_nothing,UNCERTAIN
+Agent_73,3,Only House Elevation,True,Only House Elevation,True,False,False,do_nothing,UNCERTAIN
+Agent_74,3,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_75,3,Do Nothing,True,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_77,3,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_78,3,Only House Elevation,True,Only House Elevation,True,False,False,elevate_house,APPROVED
+Agent_79,3,Do Nothing,True,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_80,3,Do Nothing,True,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_81,3,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_82,3,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_83,3,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_84,3,Do Nothing,True,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_85,3,Do Nothing,True,Do Nothing,False,False,False,do_nothing,RETRY_SUCCESS
+Agent_86,3,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_87,3,Only House Elevation,True,Only House Elevation,True,False,False,do_nothing,UNCERTAIN
+Agent_88,3,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_89,3,Do Nothing,True,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_90,3,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_91,3,Only Flood Insurance,True,Only Flood Insurance,False,True,False,buy_insurance,RETRY_SUCCESS
+Agent_93,3,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_94,3,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_95,3,Only House Elevation,True,Only House Elevation,True,False,False,elevate_house,APPROVED
+Agent_96,3,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_97,3,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_98,3,Only Flood Insurance,True,Only Flood Insurance,False,True,False,buy_insurance,RETRY_SUCCESS
+Agent_99,3,Do Nothing,True,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_100,3,Only House Elevation,True,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_1,4,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_3,4,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_4,4,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_5,4,Only House Elevation,True,Only House Elevation,True,False,False,elevate_house,RETRY_SUCCESS
+Agent_6,4,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_7,4,Only Flood Insurance,True,Only Flood Insurance,False,True,False,buy_insurance,RETRY_SUCCESS
+Agent_8,4,Only House Elevation,True,Only House Elevation,True,False,False,do_nothing,UNCERTAIN
+Agent_9,4,Do Nothing,True,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_10,4,Only House Elevation,True,Only House Elevation,True,False,False,do_nothing,UNCERTAIN
+Agent_11,4,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_12,4,Only House Elevation,True,Only House Elevation,True,False,False,elevate_house,RETRY_SUCCESS
+Agent_14,4,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_15,4,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_16,4,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_17,4,Only House Elevation,True,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_18,4,Do Nothing,True,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_19,4,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_20,4,Relocate,True,Relocate,True,True,True,relocate,APPROVED
+Agent_21,4,Do Nothing,True,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_22,4,Only House Elevation,True,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_23,4,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_24,4,Relocate,True,Relocate,False,False,True,relocate,APPROVED
+Agent_25,4,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_27,4,Only Flood Insurance,True,Only Flood Insurance,False,True,False,buy_insurance,RETRY_SUCCESS
+Agent_28,4,Only House Elevation,True,Only House Elevation,True,False,False,elevate_house,APPROVED
+Agent_29,4,Only House Elevation,True,Only House Elevation,True,False,False,do_nothing,UNCERTAIN
+Agent_30,4,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_31,4,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_32,4,Both Flood Insurance and House Elevation,True,Both Flood Insurance and House Elevation,True,True,False,buy_insurance,RETRY_SUCCESS
+Agent_33,4,Only House Elevation,True,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_34,4,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_35,4,Only House Elevation,True,Only House Elevation,True,False,False,do_nothing,UNCERTAIN
+Agent_36,4,Only Flood Insurance,True,Only Flood Insurance,False,True,False,buy_insurance,APPROVED
+Agent_37,4,Only House Elevation,True,Only House Elevation,True,False,False,elevate_house,APPROVED
+Agent_38,4,Do Nothing,True,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_39,4,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_40,4,Both Flood Insurance and House Elevation,True,Both Flood Insurance and House Elevation,True,True,False,buy_insurance,RETRY_SUCCESS
+Agent_42,4,Only House Elevation,True,Only House Elevation,True,False,False,do_nothing,RETRY_SUCCESS
+Agent_44,4,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_45,4,Do Nothing,True,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_46,4,Only House Elevation,True,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_47,4,Only Flood Insurance,True,Only Flood Insurance,False,True,False,buy_insurance,RETRY_SUCCESS
+Agent_48,4,Only House Elevation,True,Only House Elevation,True,False,False,elevate_house,RETRY_SUCCESS
+Agent_50,4,Only House Elevation,True,Only House Elevation,True,False,False,elevate_house,RETRY_SUCCESS
+Agent_51,4,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_52,4,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_53,4,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_54,4,Do Nothing,True,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_55,4,Relocate,True,Relocate,False,False,True,relocate,APPROVED
+Agent_56,4,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_57,4,Relocate,True,Relocate,False,False,True,relocate,RETRY_SUCCESS
+Agent_58,4,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_59,4,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_61,4,Only House Elevation,True,Only House Elevation,True,False,False,elevate_house,RETRY_SUCCESS
+Agent_62,4,Do Nothing,True,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_63,4,Both Flood Insurance and House Elevation,True,Both Flood Insurance and House Elevation,True,True,False,buy_insurance,APPROVED
+Agent_64,4,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_65,4,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_66,4,Do Nothing,True,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_67,4,Only House Elevation,True,Only House Elevation,True,False,False,elevate_house,RETRY_SUCCESS
+Agent_68,4,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_69,4,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_70,4,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_71,4,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_72,4,Only House Elevation,True,Only House Elevation,True,False,False,do_nothing,UNCERTAIN
+Agent_73,4,Only House Elevation,True,Only House Elevation,True,False,False,do_nothing,UNCERTAIN
+Agent_74,4,Only Flood Insurance,True,Only Flood Insurance,False,True,False,buy_insurance,RETRY_SUCCESS
+Agent_75,4,Only Flood Insurance,True,Only Flood Insurance,False,True,False,buy_insurance,RETRY_SUCCESS
+Agent_77,4,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_78,4,Both Flood Insurance and House Elevation,True,Both Flood Insurance and House Elevation,True,True,False,buy_insurance,RETRY_SUCCESS
+Agent_79,4,Do Nothing,True,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_80,4,Only House Elevation,True,Only House Elevation,True,False,False,elevate_house,RETRY_SUCCESS
+Agent_81,4,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_82,4,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_83,4,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_84,4,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_85,4,Do Nothing,True,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_86,4,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_87,4,Only House Elevation,True,Only House Elevation,True,False,False,do_nothing,RETRY_SUCCESS
+Agent_88,4,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_89,4,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_90,4,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_91,4,Only House Elevation,True,Only House Elevation,True,False,False,elevate_house,RETRY_SUCCESS
+Agent_93,4,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_94,4,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_95,4,Both Flood Insurance and House Elevation,True,Both Flood Insurance and House Elevation,True,True,False,buy_insurance,RETRY_SUCCESS
+Agent_96,4,Only Flood Insurance,True,Only Flood Insurance,False,True,False,buy_insurance,APPROVED
+Agent_97,4,Do Nothing,True,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_98,4,Do Nothing,True,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_99,4,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_100,4,Both Flood Insurance and House Elevation,True,Both Flood Insurance and House Elevation,True,True,False,buy_insurance,RETRY_SUCCESS
+Agent_1,5,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_3,5,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_4,5,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_5,5,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_6,5,Only House Elevation,False,Only House Elevation,True,False,False,elevate_house,APPROVED
+Agent_7,5,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_8,5,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_9,5,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_10,5,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_11,5,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_12,5,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_14,5,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_15,5,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_16,5,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_17,5,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_18,5,Do Nothing,False,Do Nothing,False,False,False,do_nothing,RETRY_SUCCESS
+Agent_19,5,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_21,5,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_22,5,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_23,5,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_25,5,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_27,5,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_28,5,Both Flood Insurance and House Elevation,False,Both Flood Insurance and House Elevation,True,True,False,buy_insurance,APPROVED
+Agent_29,5,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_30,5,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_31,5,Only Flood Insurance,False,Only Flood Insurance,False,True,False,buy_insurance,APPROVED
+Agent_32,5,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_33,5,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_34,5,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_35,5,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,RETRY_SUCCESS
+Agent_36,5,Relocate,False,Relocate,False,True,True,relocate,APPROVED
+Agent_37,5,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_38,5,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_39,5,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_40,5,Relocate,False,Relocate,True,True,True,relocate,APPROVED
+Agent_42,5,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_44,5,Only Flood Insurance,False,Only Flood Insurance,False,True,False,buy_insurance,APPROVED
+Agent_45,5,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_46,5,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_47,5,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_48,5,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_50,5,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_51,5,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_52,5,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_53,5,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_54,5,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_56,5,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_58,5,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_59,5,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_61,5,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,RETRY_SUCCESS
+Agent_62,5,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_63,5,Both Flood Insurance and House Elevation,False,Both Flood Insurance and House Elevation,True,True,False,buy_insurance,APPROVED
+Agent_64,5,Only House Elevation,False,Only House Elevation,True,False,False,elevate_house,RETRY_SUCCESS
+Agent_65,5,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_66,5,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_67,5,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_68,5,Only House Elevation,False,Only House Elevation,True,False,False,elevate_house,APPROVED
+Agent_69,5,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_70,5,Only House Elevation,False,Only House Elevation,True,False,False,elevate_house,APPROVED
+Agent_71,5,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_72,5,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_73,5,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_74,5,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_75,5,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_77,5,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_78,5,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,RETRY_SUCCESS
+Agent_79,5,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_80,5,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_81,5,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_82,5,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_83,5,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_84,5,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_85,5,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_86,5,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_87,5,Both Flood Insurance and House Elevation,False,Both Flood Insurance and House Elevation,True,True,False,buy_insurance,APPROVED
+Agent_88,5,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_89,5,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_90,5,Relocate,False,Relocate,False,False,True,relocate,APPROVED
+Agent_91,5,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_93,5,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_94,5,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_95,5,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_96,5,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_97,5,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_98,5,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_99,5,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_100,5,Both Flood Insurance and House Elevation,False,Both Flood Insurance and House Elevation,True,True,False,buy_insurance,APPROVED
+Agent_1,6,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_3,6,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_4,6,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_5,6,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_6,6,Both Flood Insurance and House Elevation,False,Both Flood Insurance and House Elevation,True,True,False,buy_insurance,APPROVED
+Agent_7,6,Only House Elevation,False,Only House Elevation,True,False,False,elevate_house,APPROVED
+Agent_8,6,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_9,6,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_10,6,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_11,6,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_12,6,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_14,6,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_15,6,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_16,6,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_17,6,Both Flood Insurance and House Elevation,False,Both Flood Insurance and House Elevation,True,True,False,buy_insurance,RETRY_SUCCESS
+Agent_18,6,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_19,6,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_21,6,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_22,6,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_23,6,Only Flood Insurance,False,Only Flood Insurance,False,True,False,buy_insurance,APPROVED
+Agent_25,6,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_27,6,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_28,6,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_29,6,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_30,6,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_31,6,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_32,6,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_33,6,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_34,6,Only Flood Insurance,False,Only Flood Insurance,False,True,False,buy_insurance,APPROVED
+Agent_35,6,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_37,6,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_38,6,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_39,6,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_42,6,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_44,6,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_45,6,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_46,6,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_47,6,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_48,6,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_50,6,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_51,6,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_52,6,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_53,6,Do Nothing,False,Do Nothing,False,False,False,do_nothing,RETRY_SUCCESS
+Agent_54,6,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_56,6,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_58,6,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_59,6,Only Flood Insurance,False,Only Flood Insurance,False,True,False,buy_insurance,APPROVED
+Agent_61,6,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_62,6,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_63,6,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_64,6,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_65,6,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_66,6,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_67,6,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_68,6,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_69,6,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_70,6,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_71,6,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_72,6,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_73,6,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_74,6,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_75,6,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_77,6,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_78,6,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_79,6,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_80,6,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_81,6,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_82,6,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_83,6,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_84,6,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_85,6,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_86,6,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_87,6,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_88,6,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_89,6,Do Nothing,False,Do Nothing,False,False,False,do_nothing,RETRY_SUCCESS
+Agent_91,6,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_93,6,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_94,6,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_95,6,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_96,6,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_97,6,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_98,6,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_99,6,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_100,6,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_1,7,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_3,7,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_4,7,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_5,7,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_6,7,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_7,7,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_8,7,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_9,7,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_10,7,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_11,7,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_12,7,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_14,7,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_15,7,Do Nothing,False,Do Nothing,False,False,False,do_nothing,RETRY_SUCCESS
+Agent_16,7,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_17,7,Both Flood Insurance and House Elevation,False,Both Flood Insurance and House Elevation,True,True,False,buy_insurance,APPROVED
+Agent_18,7,Relocate,False,Relocate,False,False,True,relocate,APPROVED
+Agent_19,7,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_21,7,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_22,7,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_23,7,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_25,7,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_27,7,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_28,7,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_29,7,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_30,7,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_31,7,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_32,7,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_33,7,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_34,7,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_35,7,Both Flood Insurance and House Elevation,False,Both Flood Insurance and House Elevation,True,True,False,buy_insurance,APPROVED
+Agent_37,7,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_38,7,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_39,7,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_42,7,Both Flood Insurance and House Elevation,False,Both Flood Insurance and House Elevation,True,True,False,buy_insurance,APPROVED
+Agent_44,7,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_45,7,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_46,7,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_47,7,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_48,7,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_50,7,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_51,7,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_52,7,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_53,7,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_54,7,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_56,7,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_58,7,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_59,7,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_61,7,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_62,7,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_63,7,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_64,7,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_65,7,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_66,7,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_67,7,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_68,7,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_69,7,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_70,7,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,RETRY_SUCCESS
+Agent_71,7,Only Flood Insurance,False,Only Flood Insurance,False,True,False,buy_insurance,APPROVED
+Agent_72,7,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_73,7,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_74,7,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_75,7,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_77,7,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_78,7,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_79,7,Only Flood Insurance,False,Only Flood Insurance,False,True,False,buy_insurance,APPROVED
+Agent_80,7,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_81,7,Only House Elevation,False,Only House Elevation,True,False,False,elevate_house,APPROVED
+Agent_82,7,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_83,7,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_84,7,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_85,7,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_86,7,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_87,7,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_88,7,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_89,7,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_91,7,Both Flood Insurance and House Elevation,False,Both Flood Insurance and House Elevation,True,True,False,buy_insurance,APPROVED
+Agent_93,7,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_94,7,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_95,7,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_96,7,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_97,7,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_98,7,Do Nothing,False,Do Nothing,False,False,False,do_nothing,RETRY_SUCCESS
+Agent_99,7,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_100,7,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_1,8,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_3,8,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_4,8,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_5,8,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_6,8,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_7,8,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_8,8,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_9,8,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_10,8,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_11,8,Only Flood Insurance,False,Only Flood Insurance,False,True,False,buy_insurance,APPROVED
+Agent_12,8,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_14,8,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_15,8,Do Nothing,False,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_16,8,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_17,8,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_19,8,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_21,8,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_22,8,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_23,8,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_25,8,Only Flood Insurance,False,Only Flood Insurance,False,True,False,buy_insurance,APPROVED
+Agent_27,8,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_28,8,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_29,8,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_30,8,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_31,8,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_32,8,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_33,8,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_34,8,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_35,8,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,RETRY_SUCCESS
+Agent_37,8,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_38,8,Do Nothing,False,Do Nothing,False,False,False,do_nothing,RETRY_SUCCESS
+Agent_39,8,Relocate,False,Relocate,False,False,True,relocate,APPROVED
+Agent_42,8,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,RETRY_SUCCESS
+Agent_44,8,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_45,8,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_46,8,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_47,8,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_48,8,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_50,8,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_51,8,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_52,8,Only Flood Insurance,False,Only Flood Insurance,False,True,False,buy_insurance,APPROVED
+Agent_53,8,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_54,8,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_56,8,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_58,8,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_59,8,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_61,8,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_62,8,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_63,8,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_64,8,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_65,8,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_66,8,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_67,8,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_68,8,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_69,8,Only House Elevation,False,Only House Elevation,True,False,False,elevate_house,APPROVED
+Agent_70,8,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_71,8,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_72,8,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_73,8,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_74,8,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_75,8,Only Flood Insurance,False,Only Flood Insurance,False,True,False,buy_insurance,APPROVED
+Agent_77,8,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_78,8,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_79,8,Only House Elevation,False,Only House Elevation,True,False,False,elevate_house,RETRY_SUCCESS
+Agent_80,8,Relocate,False,Relocate,True,False,True,relocate,APPROVED
+Agent_81,8,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,RETRY_SUCCESS
+Agent_82,8,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_83,8,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_84,8,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_85,8,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_86,8,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_87,8,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_88,8,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_89,8,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_91,8,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,RETRY_SUCCESS
+Agent_93,8,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_94,8,Only House Elevation,False,Only House Elevation,True,False,False,elevate_house,APPROVED
+Agent_95,8,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_96,8,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_97,8,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_98,8,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_99,8,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_100,8,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_1,9,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_3,9,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_4,9,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_5,9,Only House Elevation,True,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_6,9,Only House Elevation,True,Only House Elevation,True,False,False,do_nothing,UNCERTAIN
+Agent_7,9,Only House Elevation,True,Only House Elevation,True,False,False,do_nothing,UNCERTAIN
+Agent_8,9,Only House Elevation,True,Only House Elevation,True,False,False,do_nothing,UNCERTAIN
+Agent_9,9,Only Flood Insurance,True,Only Flood Insurance,False,True,False,buy_insurance,APPROVED
+Agent_10,9,Only House Elevation,True,Only House Elevation,True,False,False,do_nothing,UNCERTAIN
+Agent_11,9,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_12,9,Both Flood Insurance and House Elevation,True,Both Flood Insurance and House Elevation,True,True,False,buy_insurance,RETRY_SUCCESS
+Agent_14,9,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_15,9,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_16,9,Only House Elevation,True,Only House Elevation,True,False,False,elevate_house,RETRY_SUCCESS
+Agent_17,9,Only House Elevation,True,Only House Elevation,True,False,False,do_nothing,UNCERTAIN
+Agent_19,9,Do Nothing,True,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_21,9,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_22,9,Only House Elevation,True,Only House Elevation,True,False,False,do_nothing,UNCERTAIN
+Agent_23,9,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_25,9,Only House Elevation,True,Only House Elevation,True,False,False,elevate_house,APPROVED
+Agent_27,9,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_28,9,Both Flood Insurance and House Elevation,True,Both Flood Insurance and House Elevation,True,True,False,buy_insurance,APPROVED
+Agent_29,9,Only House Elevation,True,Only House Elevation,True,False,False,do_nothing,UNCERTAIN
+Agent_30,9,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_31,9,Relocate,True,Relocate,False,False,True,relocate,RETRY_SUCCESS
+Agent_32,9,Only House Elevation,True,Only House Elevation,True,False,False,do_nothing,UNCERTAIN
+Agent_33,9,Only House Elevation,True,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_34,9,Only Flood Insurance,True,Only Flood Insurance,False,True,False,buy_insurance,RETRY_SUCCESS
+Agent_35,9,Only House Elevation,True,Only House Elevation,True,False,False,do_nothing,RETRY_SUCCESS
+Agent_37,9,Both Flood Insurance and House Elevation,True,Both Flood Insurance and House Elevation,True,True,False,buy_insurance,RETRY_SUCCESS
+Agent_38,9,Do Nothing,True,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_42,9,Both Flood Insurance and House Elevation,True,Both Flood Insurance and House Elevation,True,True,False,buy_insurance,RETRY_SUCCESS
+Agent_44,9,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_45,9,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_46,9,Only House Elevation,True,Only House Elevation,True,False,False,do_nothing,UNCERTAIN
+Agent_47,9,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_48,9,Only House Elevation,True,Only House Elevation,True,False,False,do_nothing,UNCERTAIN
+Agent_50,9,Only House Elevation,True,Only House Elevation,True,False,False,do_nothing,UNCERTAIN
+Agent_51,9,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_52,9,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_53,9,Only House Elevation,True,Only House Elevation,True,False,False,elevate_house,APPROVED
+Agent_54,9,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_56,9,Do Nothing,True,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_58,9,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_59,9,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_61,9,Only House Elevation,True,Only House Elevation,True,False,False,do_nothing,UNCERTAIN
+Agent_62,9,Only House Elevation,True,Only House Elevation,True,False,False,elevate_house,RETRY_SUCCESS
+Agent_63,9,Only House Elevation,True,Only House Elevation,True,False,False,do_nothing,UNCERTAIN
+Agent_64,9,Only House Elevation,True,Only House Elevation,True,False,False,do_nothing,UNCERTAIN
+Agent_65,9,Do Nothing,True,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_66,9,Only Flood Insurance,True,Only Flood Insurance,False,True,False,buy_insurance,RETRY_SUCCESS
+Agent_67,9,Only House Elevation,True,Only House Elevation,True,False,False,do_nothing,RETRY_SUCCESS
+Agent_68,9,Only House Elevation,True,Only House Elevation,True,False,False,do_nothing,UNCERTAIN
+Agent_69,9,Only House Elevation,True,Only House Elevation,True,False,False,do_nothing,UNCERTAIN
+Agent_70,9,Only House Elevation,True,Only House Elevation,True,False,False,do_nothing,UNCERTAIN
+Agent_71,9,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_72,9,Only House Elevation,True,Only House Elevation,True,False,False,do_nothing,UNCERTAIN
+Agent_73,9,Both Flood Insurance and House Elevation,True,Both Flood Insurance and House Elevation,True,True,False,buy_insurance,APPROVED
+Agent_74,9,Only House Elevation,True,Only House Elevation,True,False,False,elevate_house,APPROVED
+Agent_75,9,Only House Elevation,True,Only House Elevation,True,False,False,elevate_house,RETRY_SUCCESS
+Agent_77,9,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_78,9,Only House Elevation,True,Only House Elevation,True,False,False,do_nothing,UNCERTAIN
+Agent_79,9,Both Flood Insurance and House Elevation,True,Both Flood Insurance and House Elevation,True,True,False,buy_insurance,RETRY_SUCCESS
+Agent_81,9,Only House Elevation,True,Only House Elevation,True,False,False,do_nothing,RETRY_SUCCESS
+Agent_82,9,Do Nothing,True,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_83,9,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_84,9,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_85,9,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_86,9,Do Nothing,True,Do Nothing,False,False,False,do_nothing,RETRY_SUCCESS
+Agent_87,9,Only House Elevation,True,Only House Elevation,True,False,False,do_nothing,UNCERTAIN
+Agent_88,9,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_89,9,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_91,9,Only House Elevation,True,Only House Elevation,True,False,False,do_nothing,UNCERTAIN
+Agent_93,9,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_94,9,Both Flood Insurance and House Elevation,True,Both Flood Insurance and House Elevation,True,True,False,buy_insurance,RETRY_SUCCESS
+Agent_95,9,Only House Elevation,True,Only House Elevation,True,False,False,do_nothing,UNCERTAIN
+Agent_96,9,Only House Elevation,True,Only House Elevation,True,False,False,elevate_house,APPROVED
+Agent_97,9,Do Nothing,True,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_98,9,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_99,9,Do Nothing,True,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_100,9,Only House Elevation,True,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_1,10,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_3,10,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_4,10,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_5,10,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_6,10,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_7,10,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_8,10,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_9,10,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_10,10,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_11,10,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_12,10,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_14,10,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_15,10,Do Nothing,False,Do Nothing,False,False,False,do_nothing,UNCERTAIN
+Agent_16,10,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_17,10,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_19,10,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_21,10,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_22,10,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_23,10,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_25,10,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_27,10,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_28,10,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_29,10,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_30,10,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_32,10,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_33,10,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_34,10,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_35,10,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_37,10,Relocate,False,Relocate,True,True,True,relocate,APPROVED
+Agent_38,10,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_42,10,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_44,10,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_45,10,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_46,10,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_47,10,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_48,10,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_50,10,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_51,10,Do Nothing,False,Do Nothing,False,False,False,do_nothing,RETRY_SUCCESS
+Agent_52,10,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_53,10,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_54,10,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_56,10,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_58,10,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_59,10,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_61,10,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_62,10,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_63,10,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_64,10,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_65,10,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_66,10,Only House Elevation,False,Only House Elevation,True,False,False,elevate_house,APPROVED
+Agent_67,10,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_68,10,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_69,10,Both Flood Insurance and House Elevation,False,Both Flood Insurance and House Elevation,True,True,False,buy_insurance,APPROVED
+Agent_70,10,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_71,10,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_72,10,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_73,10,Both Flood Insurance and House Elevation,False,Both Flood Insurance and House Elevation,True,True,False,buy_insurance,APPROVED
+Agent_74,10,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_75,10,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_77,10,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_78,10,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_79,10,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,RETRY_SUCCESS
+Agent_81,10,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_82,10,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_83,10,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_84,10,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_85,10,Only House Elevation,False,Only House Elevation,True,False,False,elevate_house,APPROVED
+Agent_86,10,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_87,10,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_88,10,Do Nothing,False,Do Nothing,False,False,False,do_nothing,RETRY_SUCCESS
+Agent_89,10,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_91,10,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_93,10,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_94,10,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_95,10,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_96,10,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
+Agent_97,10,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_98,10,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_99,10,Do Nothing,False,Do Nothing,False,False,False,do_nothing,APPROVED
+Agent_100,10,Only House Elevation,False,Only House Elevation,True,False,False,do_nothing,APPROVED
