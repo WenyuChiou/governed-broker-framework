@@ -189,6 +189,22 @@ class FloodSimulation(BaseSimulationEngine):
         state_changes = {}
         skill = approved_skill.skill_name
         
+        # Normalize skill names (handles aliases from parser/registry)
+        SKILL_NORMALIZE = {
+            "buy_insurance": "buy_insurance",
+            "insurance": "buy_insurance",
+            "FI": "buy_insurance",
+            "elevate_house": "elevate_house",
+            "elevate": "elevate_house",
+            "HE": "elevate_house",
+            "relocate": "relocate",
+            "RL": "relocate",
+            "do_nothing": "do_nothing",
+            "DN": "do_nothing",
+            "nothing": "do_nothing",
+        }
+        skill = SKILL_NORMALIZE.get(skill, skill)
+        
         if skill == "buy_insurance":
             agent.has_insurance = True
             state_changes["has_insurance"] = True
@@ -505,6 +521,20 @@ def run_experiment(args):
             agent.flood = env.flood_event
             agent.year = year
             agent.skills = "buy_insurance, elevate_house, relocate, do_nothing" if not getattr(agent, 'elevated', False) else "buy_insurance, relocate, do_nothing"
+            
+            # DEBUG: Print first agent's context for Year 1
+            if year == 1 and step_counter == 1:
+                print("\n=== DEBUG: Agent Context ===")
+                print(f"agent_name: {agent.name}")
+                print(f"elevation_status_text: {getattr(agent, 'elevation_status_text', 'NOT SET')}")
+                print(f"insurance_status_text: {getattr(agent, 'insurance_status_text', 'NOT SET')}")
+                print(f"trust_ins_text: {getattr(agent, 'trust_ins_text', 'NOT SET')}")
+                print(f"trust_neighbors_text: {getattr(agent, 'trust_neighbors_text', 'NOT SET')}")
+                print(f"flood_status_text: {getattr(agent, 'flood_status_text', 'NOT SET')}")
+                print(f"options_text: {getattr(agent, 'options_text', 'NOT SET')[:100]}...")
+                print(f"valid_choices_text: {getattr(agent, 'valid_choices_text', 'NOT SET')}")
+                print(f"memory: {getattr(agent, 'memory', [])}")
+                print("=== END DEBUG ===\n")
             
             # Process through skill broker
             result = broker.process_step(
