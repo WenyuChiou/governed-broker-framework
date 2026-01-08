@@ -498,9 +498,9 @@ def run_experiment(args):
     # Initialize simulation (World Layer)
     sim = FloodSimulation(num_agents=args.num_agents, seed=args.seed)
     
+    
     # Load config for Context Builder
     from broker.agent_config import AgentTypeConfig
-    AgentTypeConfig._instance = None # Ensure fresh load
     config_path = Path(__file__).parent / "agent_types.yaml"
     full_config = AgentTypeConfig(config_path=str(config_path))
     # We pass the household config dict

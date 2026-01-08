@@ -46,27 +46,30 @@ class CoherenceRule:
     message: str = ""
 
 
+
 class AgentTypeConfig:
     """
-    Loader for agent type configurations.
+    Agent type configuration loader.
+    
+    NO SINGLETON - Each instance loads from specified path.
     
     Usage:
-        config = AgentTypeConfig.load()
-        household = config.get("household")
-        valid_actions = household["actions"]
-        rules = household["validation_rules"]
+        # Explicit path
+        config = AgentTypeConfig(config_path="path/to/agent_types.yaml")
+        
+        # Default path
+        config = AgentTypeConfig()
     """
     
-    _instance = None
-    _config = None
-    
-    @classmethod
-    def load(cls, yaml_path: str = None) -> "AgentTypeConfig":
-        """Load or return cached config."""
-        if cls._instance is None:
-            cls._instance = cls()
-            cls._instance._load_yaml(yaml_path)
-        return cls._instance
+    def __init__(self, config_path: str = None):
+        """
+        Initialize with config path.
+        
+        Args:
+            config_path: Path to agent_types.yaml. If None, uses default.
+        """
+        self._config = None
+        self._load_yaml(config_path)
     
     def _load_yaml(self, yaml_path: str = None):
         """Load from YAML file."""
