@@ -258,7 +258,7 @@ class FloodContextBuilder:
         # Load template from local config
         from broker.agent_config import AgentTypeConfig
         config_path = Path(__file__).parent / "agent_types.yaml"
-        self.config_obj = AgentTypeConfig.load(str(config_path))
+        self.config_obj = AgentTypeConfig(config_path=str(config_path))
         self.template = self.config_obj.get_prompt_template("household")
         
         # Fallback if config fails
@@ -454,7 +454,7 @@ def setup_governance(
     
     # 5. Audit Writer (Logs traces - configurable from YAML)
     # Load audit settings from config
-    agent_config_obj = AgentTypeConfig.load(str(local_config_path))
+    agent_config_obj = AgentTypeConfig(config_path=str(local_config_path))
     household_cfg = agent_config_obj.get("household") or {}
     audit_cfg = household_cfg.get("audit", {})
     
@@ -502,7 +502,7 @@ def run_experiment(args):
     from broker.agent_config import AgentTypeConfig
     AgentTypeConfig._instance = None # Ensure fresh load
     config_path = Path(__file__).parent / "agent_types.yaml"
-    full_config = AgentTypeConfig.load(str(config_path))
+    full_config = AgentTypeConfig(config_path=str(config_path))
     # We pass the household config dict
     context_builder = FloodContextBuilder(sim, agent_config=full_config.get("household")) # Observation Layer
     
