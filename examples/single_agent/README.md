@@ -15,18 +15,48 @@ This experiment demonstrates the **Generic Governed Broker Framework** applied t
 
 ## Validation (PMT Coherence)
 
-The experiment uses **label-based coherence rules** defined in `agent_types.yaml`:
+The experiment uses **Protection Motivation Theory (PMT)** coherence rules to validate LLM decisions. These rules are grounded in behavioral science literature.
+
+### Theoretical Foundation
+
+PMT (Rogers, 1983) posits that protection motivation arises from two cognitive processes:
+
+1. **Threat Appraisal (TP):** Perceived severity + vulnerability of the threat
+2. **Coping Appraisal (CP):** Perceived efficacy + self-efficacy - response costs
+
+> **Key Literature:**
+> - Rogers, R.W. (1983). Cognitive and psychological processes in fear appeals and attitude change: A revised theory of protection motivation.
+> - Floyd, D.L., Prentice-Dunn, S., & Rogers, R.W. (2000). A meta-analysis of research on protection motivation theory. *Journal of Applied Social Psychology*.
+> - Bubeck, P., Botzen, W.J.W., & Aerts, J.C.J.H. (2012). A review of risk perceptions and other factors that influence flood mitigation behavior. *Risk Analysis*.
+
+### Validation Rules
+
+Defined in `agent_types.yaml`:
+
+| Rule | Condition | Blocked Actions | PMT Justification |
+|------|-----------|-----------------|-------------------|
+| **urgency_check** | TP = High | `do_nothing` | High threat perception should trigger protective action (Rogers, 1983) |
+| **coping_alignment** | CP = Low | `elevate_house` | Low coping capacity makes costly actions irrational (Floyd et al., 2000) |
 
 ```yaml
 coherence_rules:
   urgency_check:
-    construct: TP          # Threat Appraisal
-    when_above: ["H"]      # If label is High
+    construct: TP
+    when_above: ["H"]
     blocked_skills: ["do_nothing"]
     message: "High Threat but chose inaction"
+  
+  coping_alignment:
+    construct: CP
+    when_above: ["L"]
+    blocked_skills: ["elevate_house"]
+    message: "Low Coping but chose expensive action"
 ```
 
-**Validation Flow:**
+**Design Decision:** `relocate` is NOT blocked even with low TP/CP to allow modeling of panic-driven or irrational human behavior, consistent with behavioral economics findings (Kahneman & Tversky, 1979).
+
+### Validation Flow
+
 1. LLM outputs `Threat Appraisal: High because...`
 2. Parser extracts `TP = 'H'`
 3. Validator checks: if `TP in ['H']` AND `decision in ['do_nothing']` → **Invalid**

@@ -100,23 +100,17 @@ household:
       blocked_skills: ["do_nothing"]
       message: "High Threat Appraisal but chose inaction (do_nothing)"
     
-    # Rule 2: Overreaction Check
-    # If Threat Appraisal is Low (L), "Relocate" is too extreme
-    overreaction_check:
-      construct: TP
-      threshold: 0.0
-      when_above: ["L"]  # If label is L, relocate is invalid
-      blocked_skills: ["relocate"]
-      message: "Low Threat Appraisal but chose extreme action (relocate)"
-    
-    # Rule 3: Coping-Action Alignment
+    # Rule 2: Coping-Action Alignment
     # If Coping Appraisal is Low (L), expensive actions are invalid
     coping_alignment:
       construct: CP
       threshold: 0.0
       when_above: ["L"]
-      blocked_skills: ["elevate_house", "relocate"]
-      message: "Low Coping Appraisal but chose expensive action"
+      blocked_skills: ["elevate_house"]
+      message: "Low Coping Appraisal but chose expensive action (elevate_house)"
+    
+    # Note: Relocate is NOT blocked even with Low TP/CP - this allows agents
+    # to make "irrational" but human-like panic decisions (PMT-compliant)
 
   # Simulation Constants
   simulation:
