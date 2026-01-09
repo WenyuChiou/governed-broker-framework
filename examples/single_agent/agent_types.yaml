@@ -45,15 +45,14 @@ household:
     YOUR OPTIONS:
     {options_text}
     
-    Note: If no flood occurred recently and you feel safe, choosing "do_nothing" is reasonable.
-    If you feel threatened, consider protective actions like insurance or elevation.
+    Note: If no flood occurred this year, since no immediate threat, most people would choose "Do Nothing."
     
-    OUTPUT FORMAT - Respond with ONLY this JSON (no other text):
-    {{"TP": "H", "CP": "M", "decision": 4}}
+    Please respond using the exact format below. Do NOT include any markdown symbols:
+    Threat Appraisal: [H/M/L] - [One sentence summary of how threatened you feel]
+    Coping Appraisal: [H/M/L] - [One sentence summary of how well you can cope]
+    Final Decision: [Choose {valid_choices_text} only]
     
-    TP = Threat Perception (H=High, M=Medium, L=Low)
-    CP = Coping Perception (H=High, M=Medium, L=Low)
-    decision = Your choice (1=Insurance, 2=Elevate, 3=Relocate, 4=Do Nothing)
+    Where H=High, M=Medium, L=Low
   
   # Audit Configuration
   audit:
