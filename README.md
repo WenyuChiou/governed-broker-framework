@@ -223,20 +223,14 @@ See [examples/README.md](examples/README.md) for detailed version comparison.
 | `SkillValidators` | `skill_validators.py` | Configurable validators (see below) |
 | `ValidatorFactory` | `factory.py` | Dynamic validator loading from YAML |
 
-#### Validation Pipeline with Feedback Loop
+#### Validation Pipeline Details
 
-Each SkillProposal passes through a **governed feedback loop**:
+Each SkillProposal passes through a **configurable validation pipeline**:
 
 ```
-SkillProposal → [Validators]
-      ↓
-   If VALID → Execution (Approved)
-      ↓
-   If INVALID → Checks Retry Count
-         ↓ (Count < Max)                  ↓ (Count >= Max)
-   Feedback to LLM (Error Msg)       REJECT & FALLBACK
-         ↓                                ↓
-   New Proposal (Retry)              Default Skill (e.g., do_nothing)
+SkillProposal → [Validator 1] → [Validator 2] → ... → [Validator N] → Execution
+                    ↓               ↓                    ↓
+               If FAIL → Reject with reason, fallback to default skill
 ```
 
 #### Built-in Validator Types

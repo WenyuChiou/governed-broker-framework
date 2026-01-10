@@ -1,110 +1,54 @@
-# Skill-Governed Flood Adaptation Experiment (v2-2 Clean)
+# Skill-Governed Flood Adaptation (Single Agent Baseline)
 
-This experiment demonstrates the **Generic Governed Broker Framework** applied to flood adaptation. All domain logic is isolated in configuration files (YAML/CSV), with the experiment code using only generic framework modules.
+This example demonstrates the core functionality of the **Governed Broker Framework** in a household flood adaptation scenario. It is aligned with the 12/04 baseline experiment but enhanced with structured governance, logical validation, and detailed audit logging.
 
-## Architecture: Experiment ↔ Framework Separation
+## Core Architecture
 
-| Layer | Experiment-Specific | Framework (Generic) |
-|-------|---------------------|---------------------|
-| **Agents** | `agent_initial_profiles.csv` | `agents.base_agent.BaseAgent` |
-| **State** | CSV columns (dynamic) | `simulation.state_manager.SharedState` |
-| **Skills** | `skill_registry.yaml` | `broker.skill_registry.SkillRegistry` |
-| **Prompts** | `agent_types.yaml` | `broker.context_builder.create_context_builder` |
-| **Validation** | `coherence_rules` in YAML | `validators.AgentValidator` |
-| **Execution** | `FloodSimulation` (inherits) | `simulation.BaseSimulationEngine` |
+This experiment utilizes a **Three-Layer Architecture**:
+1.  **World Layer (`simulation/`)**: A stochastic flood simulation with environment states (flood events, grants, neighborhood adaptation).
+2.  **Governance Layer (`broker/`)**: Intercepts agent decisions.
+    -   **Unified Adapter**: Normalizes multi-model output and handles numeric-to-skill mapping.
+    -   **Agent Validator**: Enforces logical consistency (e.g., preventing inaction during high-perceived threat).
+3.  **Agent Layer (`examples/single_agent/`)**: Defines the specific prompt templates and domain skills.
 
-## Validation (PMT Coherence)
+## Hardened Universal Logic
 
-The experiment uses **Protection Motivation Theory (PMT)** coherence rules to validate LLM decisions. These rules are grounded in behavioral science literature.
+The core modules have been "hardened" to ensure simulation integrity regardless of the specific agent configuration:
+-   **Structured PMT Labels**: The system enforces $[Low/Med/High]$ parsing for Threat and Coping Appraisals by default.
+-   **Numeric Mapping**: Skill decisions can be provided as numbers (1-4), which the broker automatically maps to canonical skill IDs based on the agent's current state (e.g., standard vs. elevated).
+-   **Logical Consistency**: Core validators block "maladaptive" decisions (like doing nothing when threat is high) to ensure agents behave rationally according to the Protection Motivation Theory.
 
-### Theoretical Foundation
+## Getting Started
 
-PMT (Rogers, 1983) posits that protection motivation arises from two cognitive processes:
+1.  **Generate Profiles**: Create initial agent demographic data.
+    ```bash
+    python generate_profiles.py
+    ```
+2.  **Run Experiment**: Execute the simulation for a specific model.
+    ```bash
+    python run_experiment.py --model gemma3:4b --num-agents 100 --num-years 10
+    ```
 
-1. **Threat Appraisal (TP):** Perceived severity + vulnerability of the threat
-2. **Coping Appraisal (CP):** Perceived efficacy + self-efficacy - response costs
+## Results & Benchmark Comparison
 
-> **Key Literature:**
-> - Rogers, R.W. (1983). Cognitive and psychological processes in fear appeals and attitude change: A revised theory of protection motivation.
-> - Floyd, D.L., Prentice-Dunn, S., & Rogers, R.W. (2000). A meta-analysis of research on protection motivation theory. *Journal of Applied Social Psychology*.
-> - Bubeck, P., Botzen, W.J.W., & Aerts, J.C.J.H. (2012). A review of risk perceptions and other factors that influence flood mitigation behavior. *Risk Analysis*.
+By applying the Skill-Governed Framework, we observe more structured and rational adaptation behavior compared to the unconstrained baseline.
 
-### Validation Rules
+### Original Baseline (Reference)
+The original simulation (without structured labeling or validation) often exhibited higher variance or "do-nothing" bias in certain models.
 
-Defined in `agent_types.yaml`:
+![Original Baseline](../../ref/overall_adaptation_by_year.jpg)
 
-| Rule | Condition | Blocked Actions | PMT Justification |
-|------|-----------|-----------------|-------------------|
-| **urgency_check** | TP = High | `do_nothing` | High threat perception should trigger protective action (Rogers, 1983) |
-| **coping_alignment** | CP = Low | `elevate_house` | Low coping capacity makes costly actions irrational (Floyd et al., 2000) |
+### Skill-Governed Progression (Latest)
+With the framework applied, agents demonstrate more consistent adaptation profiles across different models (Gemma, Llama, GPT-OSS).
 
-```yaml
-coherence_rules:
-  urgency_check:
-    construct: TP
-    when_above: ["H"]
-    blocked_skills: ["do_nothing"]
-    message: "High Threat but chose inaction"
-  
-  coping_alignment:
-    construct: CP
-    when_above: ["L"]
-    blocked_skills: ["elevate_house"]
-    message: "Low Coping but chose expensive action"
-```
+| Model | Progression Plot |
+| :--- | :--- |
+| **Gemma 3:4b** | ![Gemma Progression](../../results/gemma3_4b/yearly_progression.png) |
+| **Llama 3.2:3b** | ![Llama Progression](../../results/llama3.2_3b/yearly_progression.png) |
+| **GPT-OSS** | ![GPT-OSS Progression](../../results/gpt-oss_latest/yearly_progression.png) |
 
-**Design Decision:** `relocate` is NOT blocked even with low TP/CP to allow modeling of panic-driven or irrational human behavior, consistent with behavioral economics findings (Kahneman & Tversky, 1979).
-
-### Validation Flow
-
-1. LLM outputs `Threat Appraisal: High because...`
-2. Parser extracts `TP = 'H'`
-3. Validator checks: if `TP in ['H']` AND `decision in ['do_nothing']` → **Invalid**
-4. Broker triggers retry with error message
-
-## Data Input/Output
-
-### Input Files
-| File | Format | Purpose |
-|------|--------|---------|
-| `agent_initial_profiles.csv` | CSV | Agent profiles (any columns auto-available in prompts) |
-| `flood_years.csv` | CSV | Years with flood events |
-| `agent_types.yaml` | YAML | Prompt templates, validation rules, actions |
-| `skill_registry.yaml` | YAML | Skill definitions and execution mappings |
-
-### Output Files
-| File | Location | Purpose |
-|------|----------|---------|
-| `experiment.log` | `results/<model>/` | High-level simulation log |
-| `audit_trace.jsonl` | `results/<model>/` | Detailed decision trace |
-| `audit_summary.json` | `results/<model>/` | Aggregated statistics |
-| `comparison_results.png` | `results/<model>/` | Visualization |
-
-## Running the Experiment
-
-```bash
-# Full experiment (100 agents, 10 years)
-python run_experiment.py --model llama3.2:3b --num-agents 100 --num-years 10
-
-# Quick validation test
-python run_experiment.py --model mock --num-agents 50 --num-years 1
-
-# With custom output directory
-python run_experiment.py --model llama3.2:3b --output-dir results/my_run
-```
-
-## Adding New Agent Attributes
-
-1. Add column to `agent_initial_profiles.csv` (e.g., `income`)
-2. Use in prompt template: `Your income is {income}`
-3. No code changes required ✅
-
-## Framework Module Independence
-
-The experiment code (`run_experiment.py`) imports ONLY from:
-- `agents.base_agent` (generic agent)
-- `simulation.state_manager` (generic state)
-- `broker.*` (generic broker components)
-- `validators.*` (generic validation)
-
-**No framework files are modified for this experiment.**
+## Audit Trails
+All decisions are logged in `results/<model>/household_audit.jsonl` with full traces of:
+-   The original LLM prompt and raw response.
+-   Parsed structured evaluations (TP_LABEL, CP_LABEL).
+-   Validator issues and retry history.

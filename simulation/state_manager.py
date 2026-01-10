@@ -2,121 +2,46 @@
 State Manager - Multi-level state management for single and multi-agent scenarios.
 
 State Levels:
-- Individual: Per-agent state (demographics, decisions, history)
-- Shared: Environment state visible to all agents (events, time)
-- Institutional: Policy/rule state (regulations, subsidies)
-- Aggregated: Computed stats (adoption rates, averages)
-- Custom: User-defined state categories (add via register_state_category)
+- Individual: Per-agent state (elevated, has_insurance, damage_history)
+- Shared: Environment state visible to all agents (flood_occurred, year)
+- Institutional: Policy/rule state (subsidy_rate, policy_mode)
+- Aggregated: Computed stats (community_elevated_pct)
 
-Extension Pattern:
-1. Subclass: Create domain-specific state classes
-2. Schema: Define fields via YAML or dict
-3. Dynamic: Pass any fields via **kwargs
-
-Example:
-    # Method 1: Subclass
-    class FloodAgentState(IndividualState):
-        def __init__(self, agent_id, elevated=False, has_insurance=False, **kwargs):
-            super().__init__(agent_id, **kwargs)
-            self.elevated = elevated
-            self.has_insurance = has_insurance
-    
-    # Method 2: Schema dict
-    schema = {"income": float, "age": int, "education": str}
-    state = IndividualState.from_schema(agent_id, schema, income=50000, age=35)
-    
-    # Method 3: Dynamic kwargs
-    state = IndividualState(agent_id, income=50000, age=35, education="college")
+This design supports both:
+- Single-agent: All agents share same type, use default methods
+- Multi-agent: Different agent types with different state access rules
 """
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Dict, List, Any, Optional, Type, Callable
+from typing import Dict, List, Any, Optional, Type
 
 
-class BaseState:
-    """Base class for all state types with common functionality."""
-    
-    _schema: Dict[str, type] = {}  # Field name -> expected type
-    
-    def __init__(self, **kwargs):
-        self.__dict__.update(kwargs)
+@dataclass
+class IndividualState:
+    """Base class for per-agent state. Extend for domain-specific state."""
+    agent_id: str
+    agent_type: str = "default"
     
     def to_dict(self) -> Dict[str, Any]:
-        """Serialize state to dictionary."""
-        return {k: v for k, v in self.__dict__.items() if not k.startswith('_')}
-    
-    def update(self, **kwargs) -> None:
-        """Update state fields."""
-        for k, v in kwargs.items():
-            setattr(self, k, v)
-    
-    def get(self, key: str, default: Any = None) -> Any:
-        """Get state field with default."""
-        return getattr(self, key, default)
-    
-    @classmethod
-    def from_schema(cls, schema: Dict[str, type], **kwargs) -> 'BaseState':
-        """Create state from schema definition."""
-        instance = cls(**kwargs)
-        instance._schema = schema
-        return instance
-    
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'BaseState':
-        """Create state from dictionary."""
-        return cls(**data)
+        return {k: v for k, v in self.__dict__.items()}
 
 
-class IndividualState(BaseState):
-    """
-    Per-agent state. Extend for domain-specific attributes.
+@dataclass 
+class SharedState:
+    """Environment state visible to all agents."""
+    step: int = 0
     
-    Built-in fields: agent_id, agent_type
-    Custom fields: Pass via **kwargs or subclass
-    
-    Example:
-        state = IndividualState(
-            agent_id="Agent_001",
-            agent_type="household",
-            income=50000,
-            age=35,
-            elevated=False
-        )
-    """
-    def __init__(self, agent_id: str, agent_type: str = "default", **kwargs):
-        super().__init__(**kwargs)
-        self.agent_id = agent_id
-        self.agent_type = agent_type
+    def to_dict(self) -> Dict[str, Any]:
+        return {k: v for k, v in self.__dict__.items()}
 
 
-class SharedState(BaseState):
-    """
-    Environment state visible to all agents.
+@dataclass
+class InstitutionalState:
+    """Policy/rule state that can be modified by specific agent types."""
+    policy_mode: str = "default"
     
-    Built-in fields: step
-    Custom fields: Pass via **kwargs (e.g., flood_event, weather)
-    
-    Example:
-        env = SharedState(step=5, flood_event=True, temperature=72.5)
-    """
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.step = kwargs.pop('step', 0)
-
-
-class InstitutionalState(BaseState):
-    """
-    Policy/rule state modifiable by authorized agents.
-    
-    Built-in fields: policy_mode
-    Custom fields: Pass via **kwargs (e.g., subsidy_rate, tax_rate)
-    
-    Example:
-        policy = InstitutionalState(policy_mode="active", subsidy_rate=0.5)
-    """
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.policy_mode = kwargs.pop('policy_mode', "default")
+    def to_dict(self) -> Dict[str, Any]:
+        return {k: v for k, v in self.__dict__.items()}
 
 
 class StateManager:

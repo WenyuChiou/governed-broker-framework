@@ -4,7 +4,7 @@
 
 skills:
   - skill_id: buy_insurance
-    description: "Purchase flood insurance for financial protection against flood damage"
+    description: "Buy flood insurance (Lower cost, provides partial financial protection but does not reduce physical damage)"
     eligible_agent_types: ["*"]
     preconditions: []  # Can renew annually
     institutional_constraints:
@@ -13,14 +13,9 @@ skills:
     allowed_state_changes:
       - has_insurance
     implementation_mapping: "sim.buy_insurance"
-    # Skill Metadata (for validation)
-    metadata:
-      cost: low           # low, medium, high
-      risk_level: low     # risk of choosing this action
-      category: financial # financial, structural, behavioral
 
   - skill_id: elevate_house
-    description: "Elevate house structure to prevent physical flood damage"
+    description: "Elevate your house (High upfront cost but can prevent most physical damage)"
     eligible_agent_types: ["*"]
     preconditions:
       - "not elevated"
@@ -31,13 +26,9 @@ skills:
     allowed_state_changes:
       - elevated
     implementation_mapping: "sim.elevate"
-    metadata:
-      cost: high
-      risk_level: low
-      category: structural
 
   - skill_id: relocate
-    description: "Permanently relocate away from flood-prone area"
+    description: "Relocate (Requires leaving your neighborhood but eliminates flood risk permanently)"
     eligible_agent_types: ["*"]
     preconditions:
       - "not relocated"
@@ -48,21 +39,13 @@ skills:
     allowed_state_changes:
       - relocated
     implementation_mapping: "sim.relocate"
-    metadata:
-      cost: high
-      risk_level: high    # irreversible decision
-      category: behavioral
 
   - skill_id: do_nothing
-    description: "Take no protective action this year"
+    description: "Do nothing (Require no financial investment or effort this year, but it might leave you exposed to future flood damage)"
     eligible_agent_types: ["*"]
     preconditions: []
     institutional_constraints: {}
     allowed_state_changes: []
     implementation_mapping: "sim.noop"
-    metadata:
-      cost: none
-      risk_level: varies  # depends on threat level
-      category: behavioral
 
 default_skill: do_nothing

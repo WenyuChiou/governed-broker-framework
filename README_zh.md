@@ -101,7 +101,6 @@ Governed Broker Framework 為建構可靠的 LLM 基礎 Agent-Based Models (ABMs
 這確保 LLM 只會提出已註冊的技能，由 Skill Broker 進行驗證。
 
 ### 核心執行流程
-（含受治理的反饋迴圈）：
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -121,19 +120,19 @@ Governed Broker Framework 為建構可靠的 LLM 基礎 Agent-Based Models (ABMs
 └───────────────────────────┬─────────────────────────────────────────┘
                             ▼
 ┌─────────────────────────────────────────────────────────────────────┐
-│  3. 驗證與反饋迴圈 (Feedback Loop)                                    │
+│  3. 驗證                                                            │
 │     ModelAdapter → SkillBrokerEngine → Validators                   │
-│     • 解析提案 → 檢查 Admissibility, Feasibility, Constraints, Consistency │
-│     • 若 VALID → 前往執行                                            │
-│     • 若 INVALID → 進入 **重試迴圈 (Retry Loop)**                      │
-│       └─ 提供錯誤訊息給 LLM，要求修正 (Max Retries)                  │
-│       └─ 若多次失敗 → REJECT & FALLBACK (do_nothing)                │
+│     • 將 LLM 輸出解析為結構化 SkillProposal                          │
+│     • Admissibility: 技能是否已註冊？代理人是否有資格？              │
+│     • Feasibility: 前置條件是否滿足？(尚未加高)                      │
+│     • Constraints: 年度限制？一次性規則？                           │
+│     • 若無效 → 退回到 "do_nothing"                                  │
 └───────────────────────────┬─────────────────────────────────────────┘
                             ▼
 ┌─────────────────────────────────────────────────────────────────────┐
 │  4. 執行與狀態更新                                                   │
 │     SkillBrokerEngine → Executor → StateManager                     │
-│     • 執行已驗證 (或 Fallback) 的技能效果                            │
+│     • 執行已驗證的技能效果                                          │
 │     • 更新代理人個人狀態                                            │
 │     • 記錄到 AuditWriter 以確保可追溯性                             │
 └─────────────────────────────────────────────────────────────────────┘

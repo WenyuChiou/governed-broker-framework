@@ -92,12 +92,6 @@ class BaseAgentContextBuilder(ContextBuilder):
             "state": agent.get_all_state(),  # 0-1 normalized
         }
         
-        # Include dynamic attributes (kwargs passed during agent creation)
-        # This enables {elevated}, {has_insurance} etc. in templates
-        for k, v in agent.__dict__.items():
-            if not k.startswith('_') and k not in context:
-                context[k] = v
-        
         # Optionally add raw values for readability
         if include_raw:
             context["state_raw"] = agent.get_all_state_raw()
@@ -118,31 +112,33 @@ class BaseAgentContextBuilder(ContextBuilder):
         
         # Add neighbor summary if observable
         observable = observable or []
+        # Add neighbor summary if observable
+        observable = observable or []
         if "neighbors" in observable:
             context["neighbors"] = self._get_neighbor_summary(agent_id)
+            
+        # Add flood-specific attributes to context if present on agent
+        for attr in ['elevated', 'has_insurance', 'relocated', 'flood_threshold', 'trust_in_insurance', 'trust_in_neighbors', 'flood']:
+            if hasattr(agent, attr):
+                context[attr] = getattr(agent, attr)
+                
+        # Add custom attributes if present
+        if hasattr(agent, 'custom_attributes') and agent.custom_attributes:
+            context.update(agent.custom_attributes)
         
         return context
     
     def _get_memory(self, agent) -> str:
-        """Get formatted memory from agent's memory module.
-        
-        Supports:
-        - CognitiveMemory with format_for_prompt() method
-        - CognitiveMemory with retrieve() method  
-        - Simple list of memory strings (experiment-style)
-        """
+        """Get formatted memory from agent's memory module."""
         if hasattr(agent, 'memory') and agent.memory:
-            # Priority 1: CognitiveMemory with format_for_prompt
             if hasattr(agent.memory, 'format_for_prompt'):
                 return agent.memory.format_for_prompt()
-            # Priority 2: CognitiveMemory with retrieve
             elif hasattr(agent.memory, 'retrieve'):
                 memories = agent.memory.retrieve(top_k=5)
-                return "\n".join([m[0] if isinstance(m, tuple) else str(m) for m in memories])
-            # Priority 3: Simple list of strings (experiment-style)
+                return [m[0] if isinstance(m, tuple) else str(m) for m in memories]
             elif isinstance(agent.memory, list):
-                return "\n".join(str(m) for m in agent.memory[-5:])  # Last 5 items
-        return "No memory available"
+                return agent.memory
+        return []
     
     def _get_neighbor_summary(self, agent_id: str) -> List[Dict[str, Any]]:
         """Get summary of neighbor agents' observable state."""
@@ -169,7 +165,12 @@ class BaseAgentContextBuilder(ContextBuilder):
         perception_str = self._format_perception(context.get("perception", {}))
         objectives_str = self._format_objectives(context.get("objectives", {}))
         skills_str = ", ".join(context.get("available_skills", []))
-        memory_str = context.get("memory", "No memory available")
+        memory_val = context.get("memory", [])
+        if isinstance(memory_val, list):
+            # Baseline uses: "- {item}" prefix for each memory line
+            memory_str = "\n".join(f"- {m}" for m in memory_val) if memory_val else "No memory available"
+        else:
+            memory_str = str(memory_val)
         
         # Prepare template variables
         # Base variables

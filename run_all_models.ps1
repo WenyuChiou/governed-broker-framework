@@ -1,5 +1,5 @@
 # Run All Models Batch Script
-$models = @("gemma3:4b", "llama3.2:3b")
+$models = @("gemma3:4b", "llama3.2:3b", "deepseek-r1:8b", "gpt-oss:latest")
 
 foreach ($model in $models) {
     Write-Host "Starting simulation for model: $model"

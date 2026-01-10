@@ -192,6 +192,9 @@ class FloodSimulation(BaseSimulationEngine):
             flood_df = pd.read_csv(flood_file)
             self.flood_years = sorted(flood_df['Flood_Years'].tolist())
             
+            # Slice to requested number of agents
+            df = df.head(num_agents)
+            
             for _, row in df.iterrows():
                 # Parse memory from CSV
                 if 'memory' in row and pd.notna(row['memory']):
@@ -558,7 +561,7 @@ def run_experiment(args):
         for agent in active_agents:
             step_counter += 1
             
-            # Process through skill broker (Context Builder handles prompt injection)
+            # Process through skill broker
             result = broker.process_step(
                 agent_id=agent.id,
                 step_id=step_counter,
@@ -567,66 +570,23 @@ def run_experiment(args):
                 llm_invoke=llm_invoke
             )
             
-            # Log (aligned with MCP format)
-            # The context for the prompt is built internally by the broker's context_builder.
-            # To merge custom attributes into that context, we need to modify the context_builder
-            # or pass them explicitly to process_step.
-            # Assuming the instruction implies modifying the *log entry* or a *temporary context*
-            # that is then used for logging, as the provided snippet is after process_step.
-            # However, the instruction "making dynamic fields available to the prompt template"
-            # implies it should happen *before* the LLM call within process_step.
-            # Given the exact placement in the snippet, and the instruction,
-            # this change is interpreted as adding these fields to the *log entry*
-            # which might be used for post-hoc analysis or a "context" for the log itself.
-            # If it truly needs to be in the LLM prompt, the `broker.process_step`
-            # or `FloodContextBuilder` would need modification.
-            
-            # The provided snippet is syntactically incorrect as it stands.
-            # Reinterpreting the intent based on the instruction and the snippet's content:
-            # It seems to be trying to add context-like information to the log.
-            # The instruction "merge individual.custom_attributes into the context dictionary,
-            # making dynamic fields available to the prompt template" suggests this should
-            # happen *before* the broker.process_step call, or within the context_builder.
-            # However, the provided code snippet is *after* broker.process_step.
-            # This is a conflict. I will apply the snippet as literally as possible
-            # while making it syntactically correct and assuming 'context' refers to
-            # the dictionary being built for the log entry, or that the instruction
-            # is slightly misaligned with the snippet's placement.
-            # Given the instruction, the most logical place for `context.update`
-            # to affect the prompt template would be *before* `broker.process_step`.
-            # But the snippet is placed *after*.
-            # I will assume the user wants to add these fields to the `logs` dictionary
-            # for the current agent, and the `context` in the snippet refers to
-            # a temporary dictionary that will be merged into the log entry.
+            # Store skill for persistent logging in PHASE 3
+            agent.last_skill = result.approved_skill.skill_name if result.approved_skill else None
 
-            # The instruction is to "merge individual.custom_attributes into the context dictionary,
-            # making dynamic fields available to the prompt template."
-            # This implies the context used by the LLM. The `broker.process_step`
-            # internally calls `context_builder.build_context`.
-            # To make `custom_attributes` available to the prompt, they should be
-            # passed to `process_step` or the `context_builder`.
-            # The provided snippet is after `process_step` and seems to be
-            # trying to modify the `logs.append` dictionary.
-            # I will interpret the instruction as adding these fields to the `logs`
-            # dictionary for the current agent, as that's the only 'context'
-            # being built at this exact point in the code.
-            # The snippet provided is malformed and seems to be trying to insert
-            # dictionary updates directly into the `logs.append` dictionary.
-            # I will correct the syntax and place it before the `logs.append` call,
-            # creating a temporary `log_context` dictionary.
-
-            # Create a temporary dictionary for log context, then update it
+        # PHASE 3: Log all agents per year (including those who already relocated)
+        # This ensuring the stacked bar charts always sum to the same total agent count.
+        for agent_id, agent in sim.agents.items():
             log_context = {
                 "agent_id": agent.id,
                 "year": year,
                 "decision": get_adaptation_state(agent),  # Cumulative adaptation state
-                "flood": env['flood_event'], # Alias from shared state
+                "flood": env['flood_event'], 
                 "cumulative_state": get_adaptation_state(agent) if agent else "Do Nothing",
                 "elevated": getattr(agent, 'elevated', False),
                 "has_insurance": getattr(agent, 'has_insurance', False),
                 "relocated": getattr(agent, 'relocated', False),
-                "raw_skill": result.approved_skill.skill_name if result.approved_skill else None,
-                "outcome": result.outcome.value,
+                "raw_skill": getattr(agent, 'last_skill', None), # We'll need to store this on agent
+                "outcome": "LOGGED",
             }
 
             # Inject dynamic custom attributes (e.g. income from CSV)

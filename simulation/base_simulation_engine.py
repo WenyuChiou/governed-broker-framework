@@ -1,39 +1,20 @@
 """
-Generic Base Simulation Engine.
-
-Defines the contract for the "Running Model" layer in the framework.
+Base Simulation Engine - Minimal interface for simulation classes.
 """
-from abc import ABC, abstractmethod
-from typing import Any
-from dataclasses import dataclass
+from typing import Dict, Any, List
 
-from broker.skill_types import ApprovedSkill, ExecutionResult
-
-@dataclass
-class BaseSimulationEngine(ABC):
-    """
-    Abstract Base Class for Simulation Engines.
+class BaseSimulationEngine:
+    """Base class for simulation engines."""
     
-    The Simulation Engine is responsible for:
-    1. Managing World State (Time, Environment)
-    2. Executing Approved Skills (State Transitions)
-    3. Advancing Time Steps
+    def get_agents(self) -> List[Any]:
+        """Return list of agents in the simulation."""
+        return []
     
-    It serves as the execution substrate for the Governed Broker.
-    """
-    
-    @abstractmethod
-    def execute_skill(self, approved_skill: ApprovedSkill) -> ExecutionResult:
-        """
-        Execute an APPROVED skill.
-        This is the only way state should change based on agent decisions.
-        """
+    def step(self, year: int) -> None:
+        """Execute one simulation step."""
         pass
     
-    @abstractmethod
-    def advance_step(self) -> Any:
-        """
-        Advance the simulation by one step (e.g., year, tick).
-        Updates environment, triggers events, etc.
-        """
-        pass
+    def get_state(self) -> Dict[str, Any]:
+        """Return current simulation state."""
+        return {}
+
