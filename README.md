@@ -320,8 +320,15 @@ state.update_shared({"flood_occurred": True, "year": 5})
 | 2 | Feasibility | Preconditions met? (e.g., not already elevated) |
 | 3 | Constraints | Once-only? Annual limit? |
 | 4 | Effect Safety | State changes valid? |
-| 5 | PMT Consistency | Reasoning matches decision? |
+| 5 | PMT Consistency | Reasoning matches decision? (Warning or Error) |
 | 6 | Uncertainty | Response confident? |
+
+### Validation Levels: WARNING vs ERROR
+
+The framework supports two levels of governance response:
+
+- **WARNING (Soft Guardrails)**: The system detects a potential issue (e.g., high threat but choosing inaction) and logs it in the audit trail. However, the decision is **permitted to proceed**. This is used for "suspicious" but plausible behavior.
+- **ERROR (Hard Blocks)**: The system identifies a logical or physical impossibility (e.g., trying to elevate an already elevated home, or relocating with zero perceived threat). The decision is **blocked**, and the LLM is prompted to **RETRY** with a hint about the violation. If it fails after multiple retries, a safe fallback (e.g., "Do Nothing") is executed.
 
 ---
 

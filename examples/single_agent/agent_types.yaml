@@ -101,8 +101,8 @@ household:
       construct: TP_LABEL
       when_above: ["H"]
       blocked_skills: ["do_nothing"]
-      level: WARNING
-      message: "Consistency Warning: High Threat Appraisal but chose inaction (do_nothing)."
+      level: ERROR
+      message: "Logic Error: High Threat Appraisal but attempted inaction (do_nothing). Please prioritize protection."
     
     # Rule 2: Coping-Action Alignment (Hardened to ERROR)
     # If Coping Appraisal is Low (L), expensive actions are blocked to prevent irrational over-adaptation.
