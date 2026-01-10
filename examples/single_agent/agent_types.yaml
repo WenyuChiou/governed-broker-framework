@@ -104,24 +104,33 @@ household:
       level: WARNING
       message: "Consistency Warning: High Threat Appraisal but chose inaction (do_nothing)."
     
-    # Rule 2: Coping-Action Alignment (Warning)
-    # If Coping Appraisal is Low (L), expensive actions are flagged
+    # Rule 2: Coping-Action Alignment (Hardened to ERROR)
+    # If Coping Appraisal is Low (L), expensive actions are blocked to prevent irrational over-adaptation.
     coping_alignment:
       construct: CP_LABEL
       when_above: ["L"]
       blocked_skills: ["elevate_house", "relocate"]
-      level: WARNING
-      message: "Consistency Warning: Low Coping Appraisal but chose expensive action."
+      level: ERROR
+      message: "Logic Error: Low Coping Appraisal but attempted expensive action. Please reconsider based on your limited ability to act."
 
     # Rule 3: Relocation Anomaly (Retry Required)
     # PMT Theory: Threat Appraisal is the primary gate. If Threat is Low (L), there is no "Protection Motivation".
-    # Therefore, drastic actions like Relocation are illogical regardless of Coping Appraisal (High or Low).
+    # Therefore, drastic actions like Relocation are illogical regardless of Coping Appraisal.
     relocation_anomaly:
       conditions:
         - { construct: TP_LABEL, values: ["L"] }
       blocked_skills: ["relocate"]
       level: ERROR
       message: "Logical Error: Relocation is illogical when Threat Appraisal is Low (PMT: No Protection Motivation). Please strictly align decision with Low Threat."
+
+    # Rule 4: Elevation Anomaly (New)
+    # Block House Elevation when Threat is Low to prevent unrealistic proactive behavior.
+    elevation_anomaly:
+      conditions:
+        - { construct: TP_LABEL, values: ["L"] }
+      blocked_skills: ["elevate_house"]
+      level: ERROR
+      message: "Logical Error: House Elevation is irrational when Threat Appraisal is Low. Please choose a more proportionate response like Do Nothing."
 
   # Simulation Constants (Aligned with LLMABMPMT-Final.py)
   simulation:
