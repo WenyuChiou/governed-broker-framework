@@ -95,32 +95,33 @@ household:
   
   # Validation Rules (PMT Coherence)
   coherence_rules:
-    # Rule 1: Urgency Check (Inaction Invalidity)
-    # If Threat Appraisal is High (H), "Do Nothing" should be flagged
+    # Rule 1: Urgency Check (Inaction Warning)
+    # If Threat Appraisal is High (H), "Do Nothing" is flagged but allowed to avoid over-adaptation
     urgency_check:
       construct: TP_LABEL
-      threshold: 0.0  # Always check (label-based)
-      when_above: ["H"]  # Expected level when state >= threshold
+      when_above: ["H"]
       blocked_skills: ["do_nothing"]
-      message: "High Threat Appraisal but chose inaction (do_nothing)"
+      level: WARNING
+      message: "Consistency Warning: High Threat Appraisal but chose inaction (do_nothing)."
     
-    # Rule 2: Overreaction Check
-    # If Threat Appraisal is Low (L), "Relocate" is too extreme
-    overreaction_check:
-      construct: TP_LABEL
-      threshold: 0.0
-      when_above: ["L"]  # If label is L, relocate is invalid
-      blocked_skills: ["relocate"]
-      message: "Low Threat Appraisal but chose extreme action (relocate)"
-    
-    # Rule 3: Coping-Action Alignment
-    # If Coping Appraisal is Low (L), expensive actions are invalid
+    # Rule 2: Coping-Action Alignment (Warning)
+    # If Coping Appraisal is Low (L), expensive actions are flagged
     coping_alignment:
       construct: CP_LABEL
-      threshold: 0.0
       when_above: ["L"]
       blocked_skills: ["elevate_house", "relocate"]
-      message: "Low Coping Appraisal but chose expensive action"
+      level: WARNING
+      message: "Consistency Warning: Low Coping Appraisal but chose expensive action."
+
+    # Rule 3: Relocation Anomaly (Retry Required)
+    # If BOTH Threat and Coping are Low, Relocate is illogical according to PMT
+    relocation_anomaly:
+      conditions:
+        - { construct: TP_LABEL, values: ["L"] }
+        - { construct: CP_LABEL, values: ["L"] }
+      blocked_skills: ["relocate"]
+      level: ERROR
+      message: "Logical Error: Relocation chosen despite Low Threat and Low Coping appraisal. Please reconsider."
 
   # Simulation Constants (Aligned with LLMABMPMT-Final.py)
   simulation:

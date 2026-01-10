@@ -35,7 +35,8 @@ class ValidationRule:
 @dataclass  
 class CoherenceRule:
     """Construct coherence rule."""
-    construct: str
+    construct: Optional[str] = None # Single construct (legacy)
+    conditions: Optional[List[Dict[str, Any]]] = None # Multi-construct: [{'construct': 'TP', 'values': ['L']}]
     state_field: Optional[str] = None
     state_fields: Optional[List[str]] = None
     aggregation: str = "single"
@@ -43,6 +44,7 @@ class CoherenceRule:
     expected_levels: Optional[List[str]] = None
     trigger_phrases: Optional[List[str]] = None
     blocked_skills: Optional[List[str]] = None
+    level: str = "ERROR" # ERROR (retry) or WARNING (log only)
     message: str = ""
 
 
@@ -125,7 +127,8 @@ class AgentTypeConfig:
         rules = cfg.get("coherence_rules", {})
         return [
             CoherenceRule(
-                construct=name,
+                construct=rule.get("construct", name),
+                conditions=rule.get("conditions"),
                 state_field=rule.get("state_field"),
                 state_fields=rule.get("state_fields"),
                 aggregation=rule.get("aggregation", "single"),
@@ -133,6 +136,7 @@ class AgentTypeConfig:
                 expected_levels=rule.get("when_above", rule.get("when_true")),
                 trigger_phrases=rule.get("trigger_phrases"),
                 blocked_skills=rule.get("blocked_skills"),
+                level=rule.get("level", "ERROR"),
                 message=rule.get("message", "")
             )
             for name, rule in rules.items()

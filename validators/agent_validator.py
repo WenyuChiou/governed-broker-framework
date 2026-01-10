@@ -101,11 +101,7 @@ class AgentValidator:
         
         # 2. Validate PMT Coherence (Household only)
         if base_type == "household" and reasoning:
-            # HARNDENING: Merge hardcoded default rules for household
-            default_results = self.validate_default_household_rules(agent_id, decision, reasoning)
-            results.extend(default_results)
-            
-            # YAML-based rules
+            # YAML-based rules (Single source of truth)
             results.extend(self.validate_pmt_coherence(agent_id, state, reasoning))
             results.extend(self.validate_action_blocking(agent_id, decision, state, reasoning))
         
@@ -165,56 +161,7 @@ class AgentValidator:
         self._categorize_results(results)
         return results
 
-    def validate_default_household_rules(
-        self,
-        agent_id: str,
-        decision: str,
-        reasoning: Dict[str, str]
-    ) -> List[ValidationResult]:
-        """
-        Hardcoded default consistency rules for household agents.
-        Ensures safety rails if YAML config is missing.
-        """
-        results = []
-        
-        # Helper to safely get label (H/M/L)
-        def get_label(key):
-            val = reasoning.get(key, "").upper()
-            label_text = val.split(']')[0].replace("[", "").replace("]", "").strip() if ']' in val else val.strip()
-            return label_text[:1] if label_text else ""
-
-        tp_label = get_label("TP_LABEL")
-        cp_label = get_label("CP_LABEL")
-        normalized_decision = decision.lower().strip().replace("_", "")
-
-        # 1. Enforce Urgency: High Threat should not result in Do Nothing (Warning only to avoid over-adaptation)
-        if tp_label == "H" and normalized_decision == "donothing":
-            results.append(ValidationResult(
-                valid=True,
-                validator_name="AgentValidator",
-                warnings=[f"Consistency Warning: Model said TP=High but chose 'do_nothing'."],
-                metadata={"rule": "default_urgency", "tp": tp_label, "decision": decision}
-            ))
-
-        # 2. Enforce Coping Alignment: Low Coping should avoid expensive actions (Warning only)
-        if cp_label == "L" and normalized_decision in ["elevatehouse", "relocate"]:
-            results.append(ValidationResult(
-                valid=True,
-                validator_name="AgentValidator",
-                warnings=[f"Consistency Warning: Model said CP=Low but chose '{decision}'."],
-                metadata={"rule": "default_coping_block", "cp": cp_label, "decision": decision}
-            ))
-
-        # 3. Relocation Anomaly: Low TP and Low CP should NOT relocate (Retry required)
-        if tp_label == "L" and cp_label == "L" and normalized_decision == "relocate":
-            results.append(ValidationResult(
-                valid=False,
-                validator_name="AgentValidator",
-                errors=[f"Logical Error: Relocation chosen despite Low Threat and Low Coping appraisal. Please reconsider."],
-                metadata={"rule": "relocation_anomaly", "tp": tp_label, "cp": cp_label, "decision": decision}
-            ))
-
-        return results
+    # validate_default_household_rules was removed in favor of YAML coherence_rules
 
     def validate_pmt_coherence(
         self,
@@ -300,31 +247,43 @@ class AgentValidator:
             if not rule.blocked_skills:
                 continue
             
-            # 1. Get Model's Evaluation (Label)
-            label = get_label(rule.construct)
-            if not label: 
-                continue # Model didn't output a label, skip blocking check
-            
-            # 2. Check Trigger (Is Label in the 'High' set?)
-            # YAML 'when_above' is used as 'trigger_labels' here
-            # Logic: If rule.when_above=["H"], and label="H", then TRIGGER.
             is_triggered = False
-            if rule.when_above and any(label.startswith(t[:1]) for t in rule.when_above):
-                is_triggered = True
+            
+            # Case 1: Multi-Condition Rule (v4+)
+            if rule.conditions:
+                matches = []
+                for cond in rule.conditions:
+                    c_name = cond.get("construct")
+                    c_vals = cond.get("values", [])
+                    actual = get_label(c_name)
+                    matches.append(any(actual.startswith(v[:1]) for v in c_vals))
+                is_triggered = all(matches) if matches else False
+            
+            # Case 2: Standard Single-Construct Rule
+            elif rule.construct:
+                label = get_label(rule.construct)
+                if label and rule.expected_levels:
+                    if any(label.startswith(t[:1]) for t in rule.expected_levels):
+                        is_triggered = True
                 
             if is_triggered:
                 # 3. Check Blocked Actions
-                normalized_decision = decision.lower().strip()
-                if normalized_decision in rule.blocked_skills:
+                normalized_decision = decision.lower().strip().replace("_", "")
+                blocked_normalized = [b.lower().strip().replace("_", "") for b in rule.blocked_skills]
+                
+                if normalized_decision in blocked_normalized:
+                    # Use configurable level (ERROR/WARNING)
+                    lv = ValidationLevel.ERROR if rule.level == "ERROR" else ValidationLevel.WARNING
+                    
                     results.append(ValidationResult(
-                        valid=False,
-                        level=ValidationLevel.ERROR, # Strictly Block
-                        rule=f"action_blocking_{rule.construct.lower()}",
-                        message=f"BLOCK! Model said {rule.construct}={label} but chose '{decision}' (Forbidden).",
+                        valid=(lv == ValidationLevel.WARNING),
+                        level=lv,
+                        rule=f"coherence_{rule.level.lower()}",
+                        message=rule.message or f"Action '{decision}' blocked/flagged by {rule.construct or 'conditions'}",
                         agent_id=agent_id,
                         field="decision",
                         value=decision,
-                        constraint=f"Blocked when {rule.construct} is {label}"
+                        constraint=f"Rule: {rule.level}"
                     ))
                     
         return results
