@@ -31,6 +31,7 @@ from broker.skill_registry import SkillRegistry
 from broker.model_adapter import UnifiedAdapter
 from broker.skill_broker_engine import SkillBrokerEngine
 from broker.audit_writer import GenericAuditWriter as SkillAuditWriter, AuditConfig as GenericAuditConfig
+from agents.base_agent import BaseAgent, AgentConfig, PerceptionSource
 from validators import AgentValidator
 from plot_results import plot_adaptation_results
 from simulation.base_simulation_engine import BaseSimulationEngine
@@ -44,20 +45,34 @@ class FloodContextBuilder(BaseAgentContextBuilder):
         super().__init__(*args, **kwargs)
         self.skill_registry = skill_registry
 
-    def _verbalize_trust(self, trust_value: float) -> str:
+    def _verbalize_trust(self, trust_value: float, category: str = "insurance") -> str:
         """Converts a float (0-1) into a natural language description."""
-        if trust_value >= 0.8:
-            return "strongly trust"
-        elif trust_value >= 0.5:
-            return "moderately trust"
-        elif trust_value >= 0.2:
-            return "have slight doubts about"
-        else:
-            return "deeply distrust"
+        if category == "insurance":
+            if trust_value >= 0.8:
+                return "strongly trust"
+            elif trust_value >= 0.5:
+                return "moderately trust"
+            elif trust_value >= 0.2:
+                return "have slight doubts about"
+            else:
+                return "deeply distrust"
+        elif category == "neighbors":
+            if trust_value >= 0.8:
+                return "highly rely on"
+            elif trust_value >= 0.5:
+                return "generally trust"
+            elif trust_value >= 0.2:
+                return "are skeptical of"
+            else:
+                return "completely ignore"
+        return "trust"
 
     def build(self, agent_id: str, **kwargs) -> Dict[str, Any]:
         # Get standard context
         context = super().build(agent_id, **kwargs)
+        
+        # No separate perception_text in baseline prompt - it's in memory
+
         
         # --- 1. Synthesize Baseline-Parity Attributes ---
         # (Previously done in update_agent_dynamic_context, now properly encapsulated)
@@ -77,9 +92,9 @@ class FloodContextBuilder(BaseAgentContextBuilder):
         # Insurance status text
         context['insurance_status_text'] = "have" if has_insurance else "do not have"
         
-        # Trust verbalization
-        context['trust_ins_text'] = self._verbalize_trust(trust_ins)
-        context['trust_neighbors_text'] = self._verbalize_trust(trust_neighbors)
+        # Trust verbalization (baseline has separate descriptions)
+        context['trust_ins_text'] = self._verbalize_trust(trust_ins, "insurance")
+        context['trust_neighbors_text'] = self._verbalize_trust(trust_neighbors, "neighbors")
         
         # --- 2. Format Skills List ---
         # Override 'available_skills' formatting to match LLMABMPMT-Final.py
@@ -100,6 +115,7 @@ class FloodContextBuilder(BaseAgentContextBuilder):
             # Hack: BaseAgentContextBuilder does ", ".join(skills).
             # We want newlines. So we join them with \n and pass as single item list.
             context["available_skills"] = ["\n".join(formatted_list)]
+            context["skill_variant"] = "elevated" if elevated else "non_elevated"
             
         return context
 
@@ -118,7 +134,7 @@ PAST_EVENTS = [
     "News outlets have reported a possible trend of increasing flood frequency and severity in recent years"
 ]
 
-MEMORY_WINDOW = 5  # Number of recent memories an agent retains
+MEMORY_WINDOW = 3  # Number of recent memories an agent retains
 RANDOM_MEMORY_RECALL_CHANCE = 0.2  # 20% chance to recall a random past event
 NUM_AGENTS = 100  # For neighbor percentage calculation
 GRANT_PROBABILITY = 0.5  # 50% chance of grant being available
@@ -128,7 +144,6 @@ GRANT_PROBABILITY = 0.5  # 50% chance of grant being available
 # SIMULATION LAYER (System-only execution)
 # =============================================================================
 
-from agents.base_agent import BaseAgent, AgentConfig
 def get_adaptation_state(agent: BaseAgent) -> str:
     """Helper: Classify adaptation state (aligned with MCP framework)."""
     # Access attributes directly from agent's dynamic state
@@ -202,7 +217,10 @@ class FloodSimulation(BaseSimulationEngine):
                     state_params=[],
                     objectives=[],
                     constraints=[],
-                    skills=[]
+                    skills=[],
+                    perception=[
+                        PerceptionSource(source_type="environment", source_name="system", params=["flood_event", "flood_severity", "year"])
+                    ]
                 )
                 
                 agent = BaseAgent(config=config, memory=memory)
@@ -323,7 +341,9 @@ Final Decision: {decision}"""
     try:
         from langchain_ollama import ChatOllama
         # Remove temperature=0.3 to match Baseline (which uses model default)
-        llm = ChatOllama(model=model, num_predict=256)
+        # Increase num_predict for DeepSeek models to accommodate <think> tags
+        num_predict = 2048 if "deepseek" in model.lower() or "gpt-oss" in model.lower() else 512
+        llm = ChatOllama(model=model, num_predict=num_predict)
         
         def invoke(prompt: str) -> str:
             response = llm.invoke(prompt)
@@ -375,9 +395,17 @@ def setup_governance(
     from broker.agent_config import AgentTypeConfig
     AgentTypeConfig._instance = None
     
+    # Detect DeepSeek preprocessor
+    preprocessor = None
+    if "deepseek" in model_name.lower():
+        from broker.model_adapter import deepseek_preprocessor
+        preprocessor = deepseek_preprocessor
+        print(f"✅ Using DeepSeek Preprocessor for {model_name}")
+
     # 3. Model Adapter (Interprets LLM output using local config)
     model_adapter = UnifiedAdapter(
         agent_type="household",
+        preprocessor=preprocessor,
         config_path=str(local_config_path)
     )
     
@@ -389,7 +417,7 @@ def setup_governance(
     agent_config_obj = AgentTypeConfig.load(str(local_config_path))
     household_cfg = agent_config_obj.get("household") or {}
     audit_cfg = household_cfg.get("audit", {})
-    log_prompt = household_cfg.get("config", {}).get("log_prompt", False)
+    log_prompt = audit_cfg.get("log_prompt", True)
     
     # Build output path: base_output_dir / model_name
     base_output = audit_cfg.get("output_dir", "results")
