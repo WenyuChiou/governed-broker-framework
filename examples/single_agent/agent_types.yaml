@@ -114,13 +114,14 @@ household:
       message: "Consistency Warning: Low Coping Appraisal but chose expensive action."
 
     # Rule 3: Relocation Anomaly (Retry Required)
-    # If BOTH Threat and Coping are Low, Relocate is illogical according to PMT
+    # PMT Theory: Threat Appraisal is the primary gate. If Threat is Low (L), there is no "Protection Motivation".
+    # Therefore, drastic actions like Relocation are illogical regardless of Coping Appraisal (High or Low).
     relocation_anomaly:
       conditions:
         - { construct: TP_LABEL, values: ["L"] }
       blocked_skills: ["relocate"]
       level: ERROR
-      message: "Logical Error: Relocation chosen despite Low Threat and Low Coping appraisal. Please reconsider."
+      message: "Logical Error: Relocation is illogical when Threat Appraisal is Low (PMT: No Protection Motivation). Please strictly align decision with Low Threat."
 
   # Simulation Constants (Aligned with LLMABMPMT-Final.py)
   simulation:
