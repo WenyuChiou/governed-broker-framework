@@ -205,6 +205,15 @@ class AgentValidator:
                 metadata={"rule": "default_coping_block", "cp": cp_label, "decision": decision}
             ))
 
+        # 3. Relocation Anomaly: Low TP and Low CP should NOT relocate (Retry required)
+        if tp_label == "L" and cp_label == "L" and normalized_decision == "relocate":
+            results.append(ValidationResult(
+                valid=False,
+                validator_name="AgentValidator",
+                errors=[f"Logical Error: Relocation chosen despite Low Threat and Low Coping appraisal. Please reconsider."],
+                metadata={"rule": "relocation_anomaly", "tp": tp_label, "cp": cp_label, "decision": decision}
+            ))
+
         return results
 
     def validate_pmt_coherence(
