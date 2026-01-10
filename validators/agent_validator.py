@@ -187,30 +187,22 @@ class AgentValidator:
         cp_label = get_label("CP_LABEL")
         normalized_decision = decision.lower().strip().replace("_", "")
 
-        # 1. Enforce Urgency: High Threat must not result in Do Nothing
+        # 1. Enforce Urgency: High Threat should not result in Do Nothing (Warning only to avoid over-adaptation)
         if tp_label == "H" and normalized_decision == "donothing":
             results.append(ValidationResult(
-                valid=False,
-                level=ValidationLevel.ERROR,
-                rule="default_urgency",
-                message=f"BLOCK! Model said TP=High but chose 'do_nothing' (Forbidden by default).",
-                agent_id=agent_id,
-                field="decision",
-                value=decision,
-                constraint="Blocked when TP is High"
+                valid=True,
+                validator_name="AgentValidator",
+                warnings=[f"Consistency Warning: Model said TP=High but chose 'do_nothing'."],
+                metadata={"rule": "default_urgency", "tp": tp_label, "decision": decision}
             ))
 
-        # 2. Enforce Coping Alignment: Low Coping blocks expensive actions
+        # 2. Enforce Coping Alignment: Low Coping should avoid expensive actions (Warning only)
         if cp_label == "L" and normalized_decision in ["elevatehouse", "relocate"]:
             results.append(ValidationResult(
-                valid=False,
-                level=ValidationLevel.ERROR,
-                rule="default_coping_block",
-                message=f"BLOCK! Model said CP=Low but chose '{decision}' (Forbidden by default).",
-                agent_id=agent_id,
-                field="decision",
-                value=decision,
-                constraint="Blocked when CP is Low"
+                valid=True,
+                validator_name="AgentValidator",
+                warnings=[f"Consistency Warning: Model said CP=Low but chose '{decision}'."],
+                metadata={"rule": "default_coping_block", "cp": cp_label, "decision": decision}
             ))
 
         return results
