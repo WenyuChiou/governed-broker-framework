@@ -339,10 +339,17 @@ class TieredContextBuilder(BaseAgentContextBuilder):
         g = context.get('global', [])
         template_vars["global_news"] = "\n".join([f"- {news}" for news in g]) if g else ""
         
+        # Flatten Institutional (T3)
+        inst = context.get('institutional', {})
+        for k, v in inst.items():
+            template_vars[k] = v
+            template_vars[f"inst_{k}"] = v
+        
         # Add special sections for modular UI templates
         template_vars["personal_section"] = self._format_generic_section("MY STATUS & HISTORY", p)
         template_vars["local_section"] = self._format_generic_section("LOCAL NEIGHBORHOOD", l)
         template_vars["global_section"] = self._format_generic_section("WORLD EVENTS", {"news": g})
+        template_vars["institutional_section"] = self._format_generic_section("INSTITUTIONAL & POLICY", inst)
 
         # 2. Options Section (Universal)
         agent_id = p.get('id')
@@ -376,7 +383,7 @@ class TieredContextBuilder(BaseAgentContextBuilder):
         
         # 3. Use template (Generic lookup)
         agent_type = p.get('agent_type', 'default')
-        default_template = "{personal_section}\n\n{local_section}\n\n{global_section}\n\n### [AVAILABLE OPTIONS]\n{options_text}"
+        default_template = "{personal_section}\n\n{local_section}\n\n{institutional_section}\n\n{global_section}\n\n### [AVAILABLE OPTIONS]\n{options_text}"
         template = self.prompt_templates.get(agent_type, default_template)
         
         return SafeFormatter().format(template, **template_vars)
@@ -384,13 +391,21 @@ class TieredContextBuilder(BaseAgentContextBuilder):
     def _format_generic_section(self, title: str, data: Dict[str, Any]) -> str:
         """Formats a piece of context data into a readable markdown section."""
         lines = [f"### [{title}]"]
-        for k, v in data.items():
-            if k in ["memory", "news", "social"]:
-                 continue # Handled as blocks
-            if isinstance(v, (str, int, float, bool)):
-                 lines.append(f"- {k.replace('_', ' ').capitalize()}: {v}")
         
-        # Add list-based content at the end
+        def format_dict(d, prefix="- "):
+            for k, v in d.items():
+                if k in ["memory", "news", "social"]:
+                     continue # Handled as blocks
+                if isinstance(v, (str, int, float, bool)):
+                     label = k.replace('_', ' ').capitalize()
+                     lines.append(f"{prefix}{label}: {v}")
+                elif isinstance(v, dict):
+                     # Recursively format one level for groups like 'environment' or 'spatial'
+                     format_dict(v, prefix + "  ")
+
+        format_dict(data)
+        
+        # Add list-based content (social gossip, global news)
         if "news" in data:
             lines.extend([f"- {item}" for item in data["news"]])
         if "social" in data:

@@ -6,14 +6,18 @@ from typing import List, Dict, Any, Optional
 import random
 from .social_graph import SocialGraph
 from .memory_engine import MemoryEngine
+from simulation.environment import TieredEnvironment
 
 class InteractionHub:
     """
     Manages the 'Worldview' of agents by aggregating tiered information.
     """
-    def __init__(self, graph: SocialGraph, memory_engine: Optional[MemoryEngine] = None, spatial_observables: List[str] = None):
+    def __init__(self, graph: SocialGraph, memory_engine: Optional[MemoryEngine] = None, 
+                 environment: Optional[TieredEnvironment] = None,
+                 spatial_observables: List[str] = None):
         self.graph = graph
         self.memory_engine = memory_engine
+        self.environment = environment
         self.spatial_observables = spatial_observables or ["elevated", "relocated"]
 
     def get_spatial_context(self, agent_id: str, agents: Dict[str, Any]) -> Dict[str, Any]:
@@ -90,13 +94,31 @@ class InteractionHub:
         if hasattr(agent, 'get_adaptation_status'):
             personal["status"] = agent.get_adaptation_status()
 
+        # 5. [NEW] Pull from TieredEnvironment
+        env_context = {"global": [], "local": {}, "institutional": {}}
+        if self.environment:
+            # Global
+            env_context["global"] = list(self.environment.global_state.values())
+            
+            # Local (based on agent location)
+            tract_id = getattr(agent, 'tract_id', None) or getattr(agent, 'location', None)
+            if tract_id:
+                env_context["local"] = self.environment.local_states.get(tract_id, {})
+            
+            # Institutional (based on agent type or affiliations)
+            inst_id = getattr(agent, 'institution_id', None) or getattr(agent, 'agent_type', None)
+            if inst_id:
+                env_context["institutional"] = self.environment.institutions.get(inst_id, {})
+
         return {
             "personal": personal,
             "local": {
                 "spatial": self.get_spatial_context(agent_id, agents),
-                "social": self.get_social_context(agent_id, agents)
+                "social": self.get_social_context(agent_id, agents),
+                "environment": env_context["local"]
             },
-            "global": global_news or []
+            "global": global_news or env_context["global"],
+            "institutional": env_context["institutional"]
         }
 
 
