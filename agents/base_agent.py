@@ -145,6 +145,7 @@ class BaseAgent:
     
     def __init__(self, config: AgentConfig, memory=None):
         self.config = config
+        self.id = config.name # Use config name as default ID
         self.name = config.name
         self.agent_type = config.agent_type
         
@@ -154,7 +155,7 @@ class BaseAgent:
         self._init_state()
         
         # Memory (compatible with CognitiveMemory)
-        self.memory = memory
+        self.memory = memory or []
     
     def _init_state(self):
         """Initialize state from config."""

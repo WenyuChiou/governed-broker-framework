@@ -24,12 +24,20 @@ class ExperimentConfig:
 
 class ExperimentRunner:
     """Engine that runs the simulation loop."""
-    def __init__(self, broker: SkillBrokerEngine, sim_engine: Any, agents: Dict[str, BaseAgent], config: ExperimentConfig):
+    def __init__(self, 
+                 broker: SkillBrokerEngine, 
+                 sim_engine: Any, 
+                 agents: Dict[str, BaseAgent], 
+                 config: ExperimentConfig,
+                 memory_window: int = 3,
+                 hooks: Optional[Dict[str, Callable]] = None):
         self.broker = broker
         self.sim_engine = sim_engine
         self.agents = agents
         self.config = config
         self.step_counter = 0
+        self.memory_window = memory_window
+        self.hooks = hooks or {}
 
     def run(self, llm_invoke: Callable):
         """Standardized simulation loop."""
@@ -40,12 +48,11 @@ class ExperimentRunner:
             env = self.sim_engine.advance_year()
             print(f"--- Year {year} ---")
             
-            active_agents = [a for a in self.agents.values() if not getattr(a, 'relocated', False)]
+            # --- Lifecycle Hook: Pre-Year ---
+            if "pre_year" in self.hooks:
+                self.hooks["pre_year"](year, env, self.agents)
             
-            # Hook: Update memory with external environment events (e.g. Flood)
-            if env.get("flood_event"):
-                for agent in active_agents:
-                    agent.memory.append("A major flood occurred in the city.")
+            active_agents = [a for a in self.agents.values() if not getattr(a, 'relocated', False)]
             
             for agent in active_agents:
                 self.step_counter += 1
@@ -56,9 +63,21 @@ class ExperimentRunner:
                     seed=self.config.seed + self.step_counter,
                     llm_invoke=llm_invoke,
                 )
-                # 5. Apply state changes
+                # Apply state changes
                 if result.execution_result and result.execution_result.success:
                     self._apply_state_changes(agent, result)
+                
+                # --- Lifecycle Hook: Post-Step ---
+                if "post_step" in self.hooks:
+                    self.hooks["post_step"](agent, result)
+                
+                # Standard Memory Truncation
+                if hasattr(agent, 'memory'):
+                    agent.memory = agent.memory[-self.memory_window:]
+            
+            # --- Lifecycle Hook: Post-Year ---
+            if "post_year" in self.hooks:
+                self.hooks["post_year"](year, self.agents)
             
             self._finalize_year(year)
 
@@ -91,6 +110,8 @@ class ExperimentBuilder:
         self.agent_types_path = None
         self.output_base = Path("results")
         self.ctx_builder = None
+        self.memory_window = 3
+        self.hooks = {}
 
     def with_model(self, model: str):
         self.model = model
@@ -102,6 +123,18 @@ class ExperimentBuilder:
 
     def with_years(self, years: int):
         self.num_years = years
+        return self
+
+    def with_memory_window(self, window: int):
+        self.memory_window = window
+        return self
+
+    def with_lifecycle_hooks(self, **hooks):
+        """
+        Register hooks: pre_year(year, env, agents), 
+        post_step(agent, result), post_year(year, agents)
+        """
+        self.hooks.update(hooks)
         return self
 
     def with_governance(self, profile: str, config_path: str):
@@ -166,5 +199,12 @@ class ExperimentBuilder:
             output_dir=self.output_base
         )
         
-        runner = ExperimentRunner(broker, self.sim_engine, self.agents, exp_config)
+        runner = ExperimentRunner(
+            broker=broker, 
+            sim_engine=self.sim_engine, 
+            agents=self.agents, 
+            config=exp_config,
+            memory_window=self.memory_window,
+            hooks=self.hooks
+        )
         return runner
