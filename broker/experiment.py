@@ -12,6 +12,8 @@ from broker.skill_broker_engine import SkillBrokerEngine
 from broker.context_builder import BaseAgentContextBuilder
 from agents.base_agent import BaseAgent
 
+from broker.memory_engine import MemoryEngine, WindowMemoryEngine
+
 @dataclass
 class ExperimentConfig:
     """Configuration container for an experiment."""
@@ -29,14 +31,14 @@ class ExperimentRunner:
                  sim_engine: Any, 
                  agents: Dict[str, BaseAgent], 
                  config: ExperimentConfig,
-                 memory_window: int = 3,
+                 memory_engine: Optional[MemoryEngine] = None,
                  hooks: Optional[Dict[str, Callable]] = None):
         self.broker = broker
         self.sim_engine = sim_engine
         self.agents = agents
         self.config = config
         self.step_counter = 0
-        self.memory_window = memory_window
+        self.memory_engine = memory_engine or WindowMemoryEngine(window_size=3)
         self.hooks = hooks or {}
 
     def run(self, llm_invoke: Callable):
@@ -71,9 +73,7 @@ class ExperimentRunner:
                 if "post_step" in self.hooks:
                     self.hooks["post_step"](agent, result)
                 
-                # Standard Memory Truncation
-                if hasattr(agent, 'memory'):
-                    agent.memory = agent.memory[-self.memory_window:]
+                # Note: Memory truncation is now handled inside MemoryEngine
             
             # --- Lifecycle Hook: Post-Year ---
             if "post_year" in self.hooks:
@@ -88,9 +88,9 @@ class ExperimentRunner:
         for key, value in changes.items():
             setattr(agent, key, value)
         
-        # 2. Update Memory (Action part)
+        # 2. Update Memory via Engine
         action_desc = result.approved_skill.skill_name.replace("_", " ").capitalize()
-        agent.memory.append(f"Decided to: {action_desc}")
+        self.memory_engine.add_memory(agent.id, f"Decided to: {action_desc}")
 
     def _finalize_year(self, year: int):
         # Notify audit writer to flush if needed
@@ -110,7 +110,7 @@ class ExperimentBuilder:
         self.agent_types_path = None
         self.output_base = Path("results")
         self.ctx_builder = None
-        self.memory_window = 3
+        self.memory_engine = None
         self.hooks = {}
 
     def with_model(self, model: str):
@@ -125,8 +125,8 @@ class ExperimentBuilder:
         self.num_years = years
         return self
 
-    def with_memory_window(self, window: int):
-        self.memory_window = window
+    def with_memory_engine(self, engine: MemoryEngine):
+        self.memory_engine = engine
         return self
 
     def with_lifecycle_hooks(self, **hooks):
@@ -170,17 +170,23 @@ class ExperimentBuilder:
         # 1. Setup Skill Registry
         reg = self.skill_registry or SkillRegistry()
         
-        # 2. Setup Context Builder
-        ctx_builder = self.ctx_builder or create_context_builder(self.agents)
+        # 2. Setup Memory Engine (Default to Window if not provided)
+        mem_engine = self.memory_engine or WindowMemoryEngine(window_size=3)
         
-        # 3. Setup Audit
+        # 3. Setup Context Builder
+        # Inject memory_engine into ctx_builder if it supports it
+        ctx_builder = self.ctx_builder or create_context_builder(self.agents)
+        if hasattr(ctx_builder, 'memory_engine'):
+            ctx_builder.memory_engine = mem_engine
+        
+        # 4. Setup Audit
         audit_cfg = AuditConfig(
             output_dir=str(self.output_base / f"{self.model.replace(':','_')}_{self.profile}"),
             experiment_name=self.model
         )
         audit_writer = GenericAuditWriter(audit_cfg)
         
-        # 4. Setup Validator & Adapter
+        # 5. Setup Validator & Adapter
         validator = AgentValidator(config_path=self.agent_types_path)
         from broker.model_adapter import UnifiedAdapter
         adapter = UnifiedAdapter(
@@ -188,7 +194,7 @@ class ExperimentBuilder:
             config_path=self.agent_types_path
         )
         
-        # 5. Setup Broker
+        # 6. Setup Broker
         broker = SkillBrokerEngine(
             skill_registry=reg,
             model_adapter=adapter,
@@ -210,7 +216,7 @@ class ExperimentBuilder:
             sim_engine=self.sim_engine, 
             agents=self.agents, 
             config=exp_config,
-            memory_window=self.memory_window,
+            memory_engine=mem_engine,
             hooks=self.hooks
         )
         return runner

@@ -6,6 +6,7 @@ Supports multi-agent scenarios where agents observe each other.
 """
 from typing import Dict, List, Any, Optional, Callable
 from abc import ABC, abstractmethod
+from .memory_engine import MemoryEngine
 
 
 class ContextBuilder(ABC):
@@ -53,17 +54,20 @@ class BaseAgentContextBuilder(ContextBuilder):
         self,
         agents: Dict[str, Any],  # Dict[str, BaseAgent]
         environment: Dict[str, float] = None,
-        prompt_templates: Dict[str, str] = None
+        prompt_templates: Dict[str, str] = None,
+        memory_engine: Optional[MemoryEngine] = None
     ):
         """
         Args:
             agents: Dict mapping agent names to BaseAgent instances
             environment: Shared environment state (0-1 normalized)
             prompt_templates: Dict mapping agent_type to prompt template
+            memory_engine: Engine for retrieving agent memory
         """
         self.agents = agents
         self.environment = environment or {}
         self.prompt_templates = prompt_templates or {}
+        self.memory_engine = memory_engine
     
     def build(
         self, 
@@ -112,8 +116,6 @@ class BaseAgentContextBuilder(ContextBuilder):
         
         # Add neighbor summary if observable
         observable = observable or []
-        # Add neighbor summary if observable
-        observable = observable or []
         if "neighbors" in observable:
             context["neighbors"] = self._get_neighbor_summary(agent_id)
             
@@ -128,16 +130,15 @@ class BaseAgentContextBuilder(ContextBuilder):
         
         return context
     
-    def _get_memory(self, agent) -> str:
-        """Get formatted memory from agent's memory module."""
-        if hasattr(agent, 'memory') and agent.memory:
-            if hasattr(agent.memory, 'format_for_prompt'):
-                return agent.memory.format_for_prompt()
-            elif hasattr(agent.memory, 'retrieve'):
-                memories = agent.memory.retrieve(top_k=5)
-                return [m[0] if isinstance(m, tuple) else str(m) for m in memories]
-            elif isinstance(agent.memory, list):
-                return agent.memory
+    def _get_memory(self, agent) -> List[str]:
+        """Get formatted memory via MemoryEngine."""
+        if self.memory_engine:
+            return self.memory_engine.retrieve(agent, top_k=3)
+        
+        # Fallback to direct attribute if engine not set (for standalone tests)
+        if hasattr(agent, 'memory') and isinstance(agent.memory, list):
+            return agent.memory[-3:]
+            
         return []
     
     def _get_neighbor_summary(self, agent_id: str) -> List[Dict[str, Any]]:
@@ -260,9 +261,10 @@ class TieredContextBuilder(BaseAgentContextBuilder):
         agents: Dict[str, Any],
         hub: InteractionHub,
         global_news: List[str] = None,
-        prompt_templates: Dict[str, str] = None
+        prompt_templates: Dict[str, str] = None,
+        memory_engine: Optional[MemoryEngine] = None
     ):
-        super().__init__(agents=agents, prompt_templates=prompt_templates)
+        super().__init__(agents=agents, prompt_templates=prompt_templates, memory_engine=memory_engine)
         self.hub = hub
         self.global_news = global_news or []
 
@@ -347,7 +349,8 @@ def create_context_builder(
     environment: Dict[str, float] = None,
     custom_templates: Dict[str, str] = None,
     load_yaml: bool = True,
-    yaml_path: str = None
+    yaml_path: str = None,
+    memory_engine: Optional[MemoryEngine] = None
 ) -> BaseAgentContextBuilder:
     """
     Create a context builder for a set of agents.
@@ -358,6 +361,7 @@ def create_context_builder(
         custom_templates: Optional custom prompt templates per agent_type
         load_yaml: If True, load templates from YAML file
         yaml_path: Optional path to YAML file (default: broker/prompt_templates.yaml)
+        memory_engine: Engine for retrieving agent memory
     
     Returns:
         Configured BaseAgentContextBuilder
@@ -375,7 +379,8 @@ def create_context_builder(
     return BaseAgentContextBuilder(
         agents=agents,
         environment=environment,
-        prompt_templates=templates
+        prompt_templates=templates,
+        memory_engine=memory_engine
     )
 
 
