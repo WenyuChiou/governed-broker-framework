@@ -152,12 +152,17 @@ class BaseAgent:
         # Initialize normalized state
         self._state_raw: Dict[str, float] = {}
         self._state_normalized: Dict[str, float] = {}
+        
+        # PR 9: Explicit State Partitioning (Personal vs Environmental)
+        self.fixed_attributes: Dict[str, Any] = {} # Immutable (e.g., Demographics, Tract ID)
+        self.dynamic_state: Dict[str, Any] = {}    # Mutable (e.g., Savings, Damage)
+        
         self._init_state()
         
         # Memory (compatible with CognitiveMemory)
         self.memory = memory or []
         
-        # Custom Attributes (for demographics, survey data, etc.)
+        # Custom Attributes (Legacy support, eventually migrate to fixed_attributes)
         self.custom_attributes: Dict[str, Any] = {}
     
     def _init_state(self):
@@ -165,6 +170,8 @@ class BaseAgent:
         for param in self.config.state_params:
             self._state_raw[param.name] = param.initial_raw
             self._state_normalized[param.name] = param.initial_normalized
+            # Populate Personal Dynamic State
+            self.dynamic_state[param.name] = param.initial_raw
     
     # -------------------------------------------------------------------------
     # State Access (always 0-1)
