@@ -90,32 +90,49 @@ class FloodContextBuilder(BaseAgentContextBuilder):
         )
         
         # Insurance status text
-        context['insurance_status_text'] = "have" if has_insurance else "do not have"
+        # Insurance status text
+        context['insurance_status'] = "have" if has_insurance else "do not have"
         
         # Trust verbalization (baseline has separate descriptions)
-        context['trust_ins_text'] = self._verbalize_trust(trust_ins, "insurance")
+        context['trust_insurance_text'] = self._verbalize_trust(trust_ins, "insurance")
         context['trust_neighbors_text'] = self._verbalize_trust(trust_neighbors, "neighbors")
         
         # --- 2. Format Skills List ---
         # Override 'available_skills' formatting to match LLMABMPMT-Final.py
+        # We manually build the options text and inject it as 'options_text'
+        agent = self.agents[agent_id]
+        raw_skills = agent.get_available_skills()
+        # raw_skills are now "id: Description" strings
+        # We need to format them into the numbered list or just join them newlines?
+        # The prompt uses {options_text}.
+        # Original usage:
+        # "1. Buy flood insurance ...\n2. Elevate ..."
+        # Our run_experiment.py has full strings in config.
+        # We can just join them with newlines.
+        
+        # We construct the exact string expected by the prompt
+        # Actually, let's just make 'skills' available as 'options_text' too
+        # But we need to strip the "id: " prefix if we want it to look like "1. Buy..."?
+        # Wait, the original had "1. Buy...".
+        # Current config has "buy_insurance: Buy...".
+        # To match exactly, we should format it nicely.
+        
+        formatted_options = []
+        for i, skill_item in enumerate(context["available_skills"], 1):
+             # skill_item might be "id: desc" or just "id"
+             skill_id = skill_item.split(": ", 1)[0] if ": " in skill_item else skill_item
+             
+             # Look up full description from registry to match original persuasiveness
+             skill_def = self.skill_registry.get(skill_id)
+             desc = skill_def.description if skill_def else skill_item
+             formatted_options.append(f"{i}. {desc}")
+        
+        context['options_text'] = "\n".join(formatted_options)
+        context['skills'] = context['options_text']
         # Baseline uses: "1. Skill (Desc)\n2. Skill (Desc)..."
-        if "available_skills" in context:
-            skill_ids = context["available_skills"]
-            formatted_list = []
-            for i, skill_id in enumerate(skill_ids, 1):
-                # Look up full description
-                skill_def = self.skill_registry.get_skill(skill_id)
-                desc = skill_def.description if skill_def else skill_id
-                
-                # Baseline parity adjustment:
-                # If agent is elevated, remove duplicate "elevate" option if filtered list didn't catch it
-                # (Though standard logic handles filtering, the text formatting here is final)
-                formatted_list.append(f"{i}. {desc}")
-            
-            # Hack: BaseAgentContextBuilder does ", ".join(skills).
-            # We want newlines. So we join them with \n and pass as single item list.
-            context["available_skills"] = ["\n".join(formatted_list)]
-            context["skill_variant"] = "elevated" if elevated else "non_elevated"
+        
+        # Legacy available_skills formatting removed (superseded by options_text)
+        context["skill_variant"] = "elevated" if elevated else "non_elevated"
             
         return context
 
@@ -220,7 +237,12 @@ class FloodSimulation(BaseSimulationEngine):
                     state_params=[],
                     objectives=[],
                     constraints=[],
-                    skills=[],
+                    skills=[
+                        "buy_insurance: Buy flood insurance (Lower cost, provides partial financial protection but does not reduce physical damage.)",
+                        "elevate_house: Elevate your house (High upfront cost but can prevent most physical damage.)",
+                        "relocate: Relocate (Requires leaving your neighborhood but eliminates flood risk permanently.)",
+                        "do_nothing: Do nothing (Require no financial investment or effort this year, but it might leave you exposed to future flood damage.)"
+                    ],
                     perception=[
                         PerceptionSource(source_type="environment", source_name="system", params=["flood_event", "flood_severity", "year"])
                     ]
@@ -525,23 +547,7 @@ def run_experiment(args):
         
         # PHASE 1: Update memory for all agents BEFORE decision making (aligned with MCP)
         for agent in active_agents:
-            # 1. Grant availability memory
-            if sim.grant_available:
-                agent.memory.append(f"Year {year}: Elevation grants are available.")
-            
-            # 2. Neighborhood stats memory
-            num_neighbors = NUM_AGENTS - 1
-            if num_neighbors > 0:
-                elevated_pct = round(((total_elevated - (1 if agent.elevated else 0)) / num_neighbors) * 100)
-                agent.memory.append(f"Year {year}: I observe {elevated_pct}% of my neighbors have elevated homes.")
-                relocated_pct = round((total_relocated / num_neighbors) * 100)
-                agent.memory.append(f"Year {year}: I observe {relocated_pct}% of my neighbors have relocated.")
-            
-            # 3. Stochastic memory recall
-            if random.random() < RANDOM_MEMORY_RECALL_CHANCE:
-                agent.memory.append(f"Suddenly recalled: '{random.choice(PAST_EVENTS)}'.")
-
-            # 4. CURRENT FLOOD EVENT (Detailed like MCP) - Append LAST to stay in window
+            # 1. CURRENT FLOOD EVENT (Detailed like MCP) - Process EARLY so it might be pushed out by stats
             if env['flood_event'] and not agent.elevated:
                 if random.random() < agent.flood_threshold:
                     agent.memory.append(f"Year {year}: Got flooded with $10,000 damage on my house.")
@@ -554,8 +560,24 @@ def run_experiment(args):
                     agent.memory.append(f"Year {year}: A flood occurred, but my house was protected by its elevation.")
             elif not env['flood_event']:
                 agent.memory.append(f"Year {year}: No flood occurred this year.")
+
+            # 2. Grant availability memory
+            if sim.grant_available:
+                agent.memory.append(f"Year {year}: Elevation grants are available.")
             
-            # 5. Trim memory to window
+            # 3. Neighborhood stats memory
+            num_neighbors = NUM_AGENTS - 1
+            if num_neighbors > 0:
+                elevated_pct = round(((total_elevated - (1 if agent.elevated else 0)) / num_neighbors) * 100)
+                agent.memory.append(f"Year {year}: I observe {elevated_pct}% of my neighbors have elevated homes.")
+                relocated_pct = round((total_relocated / num_neighbors) * 100)
+                agent.memory.append(f"Year {year}: I observe {relocated_pct}% of my neighbors have relocated.")
+            
+            # 4. Stochastic memory recall
+            if random.random() < RANDOM_MEMORY_RECALL_CHANCE:
+                agent.memory.append(f"Suddenly recalled: '{random.choice(PAST_EVENTS)}'.")
+
+            # 5. Trim memory to window (Using MEMORY_WINDOW constant)
             agent.memory = agent.memory[-MEMORY_WINDOW:]
         
         # PHASE 2: Process decisions for all agents

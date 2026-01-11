@@ -134,7 +134,7 @@ class AgentTypeConfig:
         rules = gov.get(profile, {}).get("identity_rules", cfg.get("identity_rules", {}))
         
         # DEBUG
-        print(f"DEBUG_CONFIG: Loading identity_rules for {agent_type} (Profile: {profile}). Found {len(rules)} entries.")
+        # print(f"DEBUG_CONFIG: Loading identity_rules for {agent_type} (Profile: {profile}). Found {len(rules)} entries.")
             
         if isinstance(rules, dict):
             rules_list = [{"id": k, **v} for k, v in rules.items()]
@@ -163,7 +163,7 @@ class AgentTypeConfig:
         rules = gov.get(profile, {}).get("thinking_rules", cfg.get("thinking_rules", cfg.get("coherence_rules", {})))
         
         # DEBUG
-        print(f"DEBUG_CONFIG: Loading thinking_rules for {agent_type} (Profile: {profile}). Found {len(rules)} entries.")
+        # print(f"DEBUG_CONFIG: Loading thinking_rules for {agent_type} (Profile: {profile}). Found {len(rules)} entries.")
             
         if isinstance(rules, list):
             rules_list = rules
@@ -201,14 +201,38 @@ class AgentTypeConfig:
         cfg = self.get(agent_type)
         return cfg.get("parsing", {})
 
-    def get_skill_map(self, agent_type: str, variant: str = None) -> Dict[str, str]:
-        """Get numeric skill map for an agent variant."""
-        parsing = self.get_parsing_config(agent_type)
-        if not variant:
-            return parsing.get("skill_map", {})
+    def get_skill_map(self, agent_type: str, context: Dict[str, Any] = None) -> Dict[str, str]:
+        """
+        Get numeric skill map for an agent, optionally resolving variants based on context.
+        
+        Args:
+            agent_type: Type of agent
+            context: Dictionary containing agent state (e.g., {'elevated': True})
             
-        # Try specific variant map, e.g., skill_map_elevated
-        return parsing.get(f"skill_map_{variant}", parsing.get("skill_map", {}))
+        Returns:
+            Dictionary mapping strings (numbers) to skill IDs.
+        """
+        parsing = self.get_parsing_config(agent_type)
+        if not parsing:
+            return {}
+            
+        # 1. Check for explicit skill_variant (Legacy/Manual)
+        variant = context.get("skill_variant") if context else None
+        if variant:
+            v_key = f"skill_map_{variant}"
+            if v_key in parsing:
+                return parsing[v_key]
+        
+        # 2. Smart Resolution: Find keys matching boolean flags in context
+        if context:
+            for key, val in context.items():
+                if isinstance(val, bool):
+                    v_key = f"skill_map_{key}" if val else f"skill_map_non_{key}"
+                    if v_key in parsing:
+                        return parsing[v_key]
+        
+        # 3. Fallback to default skill_map
+        return parsing.get("skill_map", {})
 
     def get_parameters(self, agent_type: str) -> Dict[str, Any]:
         """Get domain parameters for agent type."""

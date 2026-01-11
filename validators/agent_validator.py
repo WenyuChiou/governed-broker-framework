@@ -176,7 +176,7 @@ class AgentValidator:
         rules = self.config.get_identity_rules(agent_type)
         
         # DEBUG
-        print(f"DEBUG_VALIDATOR: Tier=identity Decision={decision} Rules={len(rules)}", flush=True)
+        # print(f"DEBUG_VALIDATOR: Tier=identity Decision={decision} Rules={len(rules)}", flush=True)
 
         for rule in rules:
             if not rule.blocked_skills: continue
@@ -235,7 +235,7 @@ class AgentValidator:
         results = []
         
         # DEBUG
-        print(f"DEBUG_VALIDATOR: Tier={tier_name} Decision={decision} Rules={len(rules)}", flush=True)
+        # print(f"DEBUG_VALIDATOR: Tier={tier_name} Decision={decision} Rules={len(rules)}", flush=True)
 
         def get_label(key):
             val = reasoning.get(key, "").upper()

@@ -85,6 +85,14 @@ class UnifiedAdapter(ModelAdapter):
         
         # Load parsing config and actual actions/aliases
         parsing_cfg = self.agent_config.get_parsing_config(agent_type)
+        if not parsing_cfg:
+            # Smart defaults if 'parsing' block is missing from YAML
+            parsing_cfg = {
+                "decision_keywords": ["final decision:", "decision:", "decide:"],
+                "default_skill": "do_nothing",
+                "constructs": {}
+            }
+        
         actions = self.agent_config.get_valid_actions(agent_type)
         
         self.config = parsing_cfg
@@ -143,15 +151,26 @@ class UnifiedAdapter(ModelAdapter):
                         skill_name = skill
                         break
                 
-                # Skill mapping logic moved to config-driven fallback
+                # Skill mapping logic: Smart Resolution
                 if not skill_name:
-                    variant = context.get("skill_variant")
-                    skill_map = self.agent_config.get_skill_map(self.agent_type, variant)
+                    skill_map = self.agent_config.get_skill_map(self.agent_type, context)
                     
+                    # Try to find a numeric match in the map
                     for char in raw_decision:
-                        if char.isdigit():
+                        if char.isdigit() and char in skill_map:
                             skill_name = skill_map.get(char)
                             break
+                    
+                    # Universal Numeric Mapper (Fallback if no map or match found)
+                    if not skill_name:
+                        # Fallback: Use index of actions list in YAML (1-indexed)
+                        raw_actions = self.agent_config.get(self.agent_type).get("actions", [])
+                        for char in raw_decision:
+                            if char.isdigit():
+                                idx = int(char) - 1
+                                if 0 <= idx < len(raw_actions):
+                                    skill_name = raw_actions[idx]["id"]
+                                    break
                 
                 # Extract dynamic constructs (Config-driven)
                 constructs = self.config.get("constructs", {})
@@ -252,15 +271,25 @@ class UnifiedAdapter(ModelAdapter):
                         skill_name = skill
                         break
                 
-                # Skill mapping logic moved to config-driven fallback
+                # Skill mapping logic: Smart Resolution
                 if not skill_name:
-                    variant = context.get("skill_variant")
-                    skill_map = self.agent_config.get_skill_map(self.agent_type, variant)
-
+                    skill_map = self.agent_config.get_skill_map(self.agent_type, context)
+                    
+                    # Try map
                     for char in decision_text:
-                        if char.isdigit():
-                            skill_name = skill_map.get(char, self.config.get("default_skill", "do_nothing"))
+                        if char.isdigit() and char in skill_map:
+                            skill_name = skill_map.get(char)
                             break
+                            
+                    # Universal Fallback
+                    if not skill_name:
+                        raw_actions = self.agent_config.get(self.agent_type).get("actions", [])
+                        for char in decision_text:
+                            if char.isdigit():
+                                idx = int(char) - 1
+                                if 0 <= idx < len(raw_actions):
+                                    skill_name = raw_actions[idx]["id"]
+                                    break
         
         # Default skill from config
         if not skill_name:

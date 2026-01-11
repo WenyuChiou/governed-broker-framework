@@ -107,10 +107,11 @@ class SkillBrokerEngine:
         prompt = self.context_builder.format_prompt(context)
         raw_output = llm_invoke(prompt)
         
+        # Pass the full context to model adapter for smart variant resolution
         skill_proposal = self.model_adapter.parse_output(raw_output, {
             "agent_id": agent_id,
-            "is_elevated": context.get("elevated", False),
-            "agent_type": agent_type
+            "agent_type": agent_type,
+            **context  # Pass all context flags (elevated, etc.)
         })
         
         if skill_proposal is None:

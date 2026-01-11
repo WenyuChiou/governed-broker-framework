@@ -278,7 +278,23 @@ class BaseAgent:
     
     def get_available_skills(self) -> List[str]:
         """Get list of available skill IDs."""
-        return [s.skill_id for s in self.config.skills]
+        try:
+            # print(f"DEBUG_SKILLS: {self.config.skills}")
+            if not self.config.skills:
+                return []
+            
+            first_skill = self.config.skills[0]
+            # print(f"DEBUG_SKILLS_TYPE: {type(first_skill)}")
+            
+            if isinstance(first_skill, str):
+                return self.config.skills
+                
+            return [s.skill_id for s in self.config.skills]
+        except Exception as e:
+            print(f"CRITICAL ERROR in get_available_skills: {e}")
+            import traceback
+            traceback.print_exc()
+            raise e
     
     def execute_skill(self, skill_id: str, adjustment: float = 0.0) -> bool:
         """
