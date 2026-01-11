@@ -6,7 +6,23 @@ Supports multi-agent scenarios where agents observe each other.
 """
 from typing import Dict, List, Any, Optional, Callable
 from abc import ABC, abstractmethod
+import string
+
 from .memory_engine import MemoryEngine
+
+class SafeFormatter(string.Formatter):
+    """
+    Formatter that handles missing keys gracefully by returning a placeholder.
+    Essential for heterogeneous demographic data.
+    """
+    def __init__(self, placeholder: str = "[N/A]"):
+        self.placeholder = placeholder
+        super().__init__()
+
+    def get_value(self, key, args, kwargs):
+        if isinstance(key, str):
+            return kwargs.get(key, self.placeholder)
+        return super().get_value(key, args, kwargs)
 
 
 class ContextBuilder(ABC):
@@ -202,7 +218,7 @@ class BaseAgentContextBuilder(ContextBuilder):
         template_vars.update({k: v for k, v in context.items() 
                             if k not in template_vars and isinstance(v, (str, int, float))})
             
-        return template.format(**template_vars)
+        return SafeFormatter().format(template, **template_vars)
     
     def _format_state(self, state: Dict[str, float], compact: bool = True) -> str:
         """Format normalized state. Compact: inline, Verbose: multiline."""
