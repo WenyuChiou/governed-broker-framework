@@ -244,6 +244,66 @@ class BaseAgentContextBuilder(ContextBuilder):
             lines.append(f"- {name}: {current:.2f} ({target[0]:.2f}-{target[1]:.2f}) {status}")
         return "\n".join(lines) if lines else "No objectives"
 
+from .interaction_hub import InteractionHub
+
+class TieredContextBuilder(BaseAgentContextBuilder):
+    """
+    PR 2: Hierarchical Context Builder (T0, T1, T2).
+    
+    Tiers:
+    - Tier 0: Personal (Internal state/memory)
+    - Tier 1: Local (Social Gossip & Spatial Observation)
+    - Tier 2: Global (Institutional/Public News)
+    """
+    def __init__(
+        self,
+        agents: Dict[str, Any],
+        hub: InteractionHub,
+        global_news: List[str] = None,
+        prompt_templates: Dict[str, str] = None
+    ):
+        super().__init__(agents=agents, prompt_templates=prompt_templates)
+        self.hub = hub
+        self.global_news = global_news or []
+
+    def build(self, agent_id: str, **kwargs) -> Dict[str, Any]:
+        """Build context using the InteractionHub's tiered logic."""
+        return self.hub.build_tiered_context(agent_id, self.agents, self.global_news)
+
+    def format_prompt(self, context: Dict[str, Any]) -> str:
+        """Format the tiered context into a grounded prompt."""
+        agent_type = context['personal'].get('agent_type', 'household')
+        # Use a tiered template if available, otherwise use a generic structured one
+        template = self.prompt_templates.get(agent_type, "{personal_section}\n\n{local_section}\n\n{global_section}\n\n{options_text}")
+        
+        # 1. Personal Section (T0)
+        p = context['personal']
+        mem_items = p.get('memory', [])
+        mem_str = "\n".join([f"- {m}" for m in mem_items]) if mem_items else "No private memories."
+        personal_section = f"### [MY STATUS & HISTORY]\n{mem_str}"
+        
+        # 2. Local Section (T1)
+        l = context['local']
+        spatial = l['spatial']
+        spatial_str = f"- Neighborhood Observation: {spatial['elevated_pct']}% of my direct neighbors have elevated homes."
+        
+        social = l['social']
+        social_str = "\n".join([f"- {g}" for g in social]) if social else "- No recent gossip from neighbors."
+        local_section = f"### [LOCAL NEIGHBORHOOD]\n{spatial_str}\n{social_str}"
+        
+        # 3. Global Section (T2)
+        g = context['global']
+        global_str = "\n".join([f"- {news}" for news in g]) if g else "- No major public news today."
+        global_section = f"### [CITY-WIDE NEWS]\n{global_str}"
+        
+        # Combine
+        return template.format(
+            personal_section=personal_section,
+            local_section=local_section,
+            global_section=global_section,
+            options_text="[Now, consider your available options and make a decision.]"
+        )
+
 
 # Compact token-efficient prompt template with LLM interpretation
 DEFAULT_PROMPT_TEMPLATE = """[{agent_type}:{agent_name}]
