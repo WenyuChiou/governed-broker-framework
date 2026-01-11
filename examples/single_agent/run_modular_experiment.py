@@ -1,7 +1,3 @@
-"""
-Modular Flood Adaptation Experiment - PR 3 Template
-Demonstrates the 'Puzzle' Architecture using ExperimentBuilder.
-"""
 import sys
 from pathlib import Path
 from datetime import datetime
@@ -13,7 +9,9 @@ from broker.experiment import ExperimentBuilder
 from broker.social_graph import NeighborhoodGraph
 from broker.interaction_hub import InteractionHub
 from broker.context_builder import TieredContextBuilder
-from examples.single_agent.run_experiment import FloodSimulation, FloodContextBuilder
+from simulation.environment import TieredEnvironment
+from examples.multi_agent.world_models.disaster_model import DisasterModel
+from examples.single_agent.run_experiment import FloodSimulation
 
 def run_modular_approach(model: str = "llama3.2:3b", years: int = 10, agents_count: int = 100):
     print(f"--- Launching Modular Experiment: {model} ---")
@@ -21,6 +19,29 @@ def run_modular_approach(model: str = "llama3.2:3b", years: int = 10, agents_cou
     # 1. Initialize Simulation (World Layer)
     sim = FloodSimulation(num_agents=agents_count)
     agent_ids = list(sim.agents.keys())
+
+    # [NEW] Lego Block: Tiered Environment & World Model 🌍
+    env = TieredEnvironment()
+    env.set_global("flood_depth", 0.0)
+    
+    # Initialize Disaster Model (The Science Logic)
+    disaster_model = DisasterModel()
+
+    # Define a Logic Hook (Connecting the Legos)
+    def disaster_lifecycle_hook(context):
+        if context.event == "pre_year":
+            # Run the scientific model
+            # Hazard -> Vulnerability -> Loss
+            # This updates the 'env' and agent state automatically
+            print(f" [Science] Running Disaster Model for Year {context.year}...")
+            # (In a real scenario, you'd pass the actual hazard data here)
+            # disaster_model.calculate_impact(...) 
+            
+            # Simple demo logic:
+            is_flood_year = context.year in [3, 4, 9]
+            env.set_global("flood_event", is_flood_year)
+            if is_flood_year:
+                print(" -> 🌊 FLOOD EVENT DETECTED by World Model")
 
     # 2. Setup Social Interaction Layer (PR 2)
     # Using NeighborhoodGraph (K=4) to simulate local street-level influence
@@ -46,6 +67,7 @@ def run_modular_approach(model: str = "llama3.2:3b", years: int = 10, agents_cou
         .with_context_builder(ctx_builder)
         .with_governance("strict", "examples/single_agent/agent_types.yaml")
         .with_output("results_modular")
+        .with_hook(disaster_lifecycle_hook) # <--- Plug in the Scientific Lego
         .build()
     )
 
@@ -59,4 +81,4 @@ def run_modular_approach(model: str = "llama3.2:3b", years: int = 10, agents_cou
 
 if __name__ == "__main__":
     # Example run with mock/toy settings
-    run_modular_approach(model="mock", years=2, agents_count=10)
+    run_modular_approach(model="mock", years=5, agents_count=10)

@@ -14,33 +14,13 @@ class MockAgent:
         self.dynamic_state = {"budget": 1000.0, "house_elevation": 0.0}
         self.last_decision = decision # For pricing model
 
-from examples.single_agent.world_models.pricing_model import PricingModel
-from examples.single_agent.world_models.disaster_model import DisasterModel
+from simulation.environment import TieredEnvironment
+from examples.multi_agent.world_models.disaster_model import DisasterModel
+# PricingModel removed as it was part of the single-agent demo cleanup
 
 class TestWorldModels(unittest.TestCase):
     
-    def test_pricing_model(self):
-        print("\nTesting Pricing Model (Single-Agent Demo)...")
-        env = TieredEnvironment()
-        model = PricingModel(env)
-        
-        # Scenario: Bull Market + Buying Agent
-        env.set_global("market_trend", "bull")
-        agents = [MockAgent("A1", decision="buy")]
-        
-        # Step 1
-        model.step(agents)
-        
-        # Check Environment Update (Price should rise)
-        # Base 100 * 1.05 (Bull) * (1 + 0.001 Demand) ~= 105.1
-        new_price = env.get_observable("global.market_price")
-        print(f" New Market Price: {new_price}")
-        self.assertGreater(new_price, 100.0)
-        
-        # Check Personal Update (Budget should decrease)
-        updated_budget = agents[0].dynamic_state['budget']
-        print(f" Agent Budget: {updated_budget}")
-        self.assertLess(updated_budget, 1000.0)
+    # Pricing Model test removed
         
     def test_disaster_model(self):
         print("\nTesting Disaster Model (Spatial)...")
