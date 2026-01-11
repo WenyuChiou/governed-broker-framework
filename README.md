@@ -11,34 +11,54 @@
 
 </div>
 
----
+## Lego-Style Modular Architecture 🧱
 
-## Overview
+The framework is built like a set of **Lego blocks**. Each component is independent and can be "plugged in" or swapped to build entirely different research experiments without changing the core engine.
 
-The Governed Broker Framework is a **generic governance middleware** for building reliable LLM-driven Agent-Based Models (ABMs). It acts as a "Supervisor Layer" that strictly enforces logic, consistency, and safety rules on LLM outputs before they affect the simulation.
+### The 4 Core Building Blocks
 
-Designed for modularity, it can be applied to any domain—from **Flood Adaptation** (as shown in examples) to **Financial Markets**, **Supply Chains**, or **Social Dynamics**—simply by changing the YAML configuration.
-
-### Key Features
-
-- **Configuration-Driven**: Define agent personas, logic rules, and decision formats entirely in YAML. No code changes required for new domains.
-- **Dynamic Governance**: Switch between "Strict" and "Relaxed" enforcement profiles at runtime.
-- **Protocol-Agnostic**: Supports any decision format (JSON, Structured Text, etc.) via regex-based adapter configuration.
-- **Traceable Audit**: Automatically logs every decision, reason, and validation error into structured CSVs for analysis.
+| Block | Role | Analogy | Description |
+| :--- | :--- | :--- | :--- |
+| **Skill Registry** | The Charter | *The Law* | Defines *what* an agent can do and the physical constraints of those actions. |
+| **Skill Broker** | The Judge | *The Court* | Enforces institutional and psychological rules (e.g., PMT coherence) on LLM proposals. |
+| **Sim Engine** | The World | *The Physics* | Executes the results of approved actions and updates the environment (e.g., flood damage). |
+| **Context Builder** | The Lens | *The Senses* | Filters what an agent "sees" (Personal, Social, and Global tiers) to create the LLM prompt. |
 
 ---
 
-## Challenges & Solutions
+## Multi-Agent Social Constructs (The "5 Pillars")
 
-![Challenges and Solutions](docs/challenges_solutions.png)
+To support complex social simulations, we define 5 core psychological constructs that drive agent decision-making. These are implemented as modular "Governance Detectors":
 
-| Challenge | Problem | Solution | Component |
-|-----------|---------|----------|-----------|
-| **Hallucination** | LLM generates invalid/non-existent actions | Skill Registry restricts to registered skills only | `SkillRegistry` |
-| **Asymmetric Information** | LLM lacks state awareness, makes infeasible decisions | Context Builder provides bounded observable state | `ContextBuilder` |
-| **Inconsistent Decisions** | Contradictory or illogical choices | Multi-stage validators check PMT consistency | `Validators` |
-| **No Traceability** | Cannot reproduce or audit decisions | Complete audit trail with timestamps | `AuditWriter` |
-| **Uncontrolled State Mutation** | Direct, unvalidated state changes | State Manager controls all state updates | `StateManager` |
+1.  **Threat Appraisal (TP)**: Perceived risk and severity of events.
+2.  **Coping Appraisal (CP)**: Perceived ability to take action (finance, effort).
+3.  **Stakeholder Trust (SP)**: Confidence in institutions (e.g., Government, Insurance).
+4.  **Social Capital (SC)**: Neighbor observation and community influence.
+5.  **Place Attachment (PA)**: Emotional and physical bond to current location.
+
+---
+
+## How it Plugs Together (Lego Flow)
+
+```mermaid
+graph LR
+    subgraph Perception ["1. The Lens (Context)"]
+        CB["ContextBuilder"] --"Tiers: Personal/Social/Env"--> LLM
+    end
+    
+    subgraph Governance ["2. The Judge (Broker)"]
+        LLM --"Proposal"--> SB["SkillBroker"]
+        SR["SkillRegistry"] --"Charter Rules"--> SB
+        VAL["Validators"] --"PMT Rules"--> SB
+    end
+    
+    subgraph Execution ["3. The World (Sim)"]
+        SB --"Approved Skill"--> SIM["SimulationEngine"]
+        SIM --"State Change"--> STATE["AgentState"]
+    end
+    
+    STATE --"Feedback"--> CB
+```
 
 ---
 
