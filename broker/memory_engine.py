@@ -60,28 +60,48 @@ class ImportanceMemoryEngine(MemoryEngine):
     """
     Active Retrieval Engine.
     Prioritizes significant events over routine ones.
+    
+    Weights and categories can be customized:
+    - categories: {"flood": ["flood", "damage"], "social": ["friend"]}
+    - weights: {"flood": 1.0, "social": 0.5, "routine": 0.1}
     """
-    def __init__(self, window_size: int = 3, top_k_significant: int = 2):
+    def __init__(
+        self, 
+        window_size: int = 3, 
+        top_k_significant: int = 2,
+        weights: Optional[Dict[str, float]] = None,
+        categories: Optional[Dict[str, List[str]]] = None
+    ):
         self.window_size = window_size
         self.top_k_significant = top_k_significant
         self.storage: Dict[str, List[Dict[str, Any]]] = {}
+        
+        # Merge weights and categories
+        self.weights = weights or {
+            "flood": 1.0, "adaptation": 0.8, "social": 0.5, "routine": 0.1
+        }
+        self.categories = categories or {
+            "flood": ["flood", "damage", "severity"],
+            "adaptation": ["insurance", "payout", "buyout", "grant", "elevat", "relocat"],
+            "social": ["neighbor", "friend", "community"]
+        }
 
     def _score_content(self, content: str) -> float:
         """Heuristic scoring based on keyword importance."""
-        score = 1.0 # Baseline
-        keywords = {
-            "flood": 5.0,
-            "relocate": 4.0,
-            "elevate": 3.0,
-            "insurance": 2.0,
-            "damage": 4.5,
-            "neighborhood": 1.5
-        }
         content_lower = content.lower()
-        for kw, weight in keywords.items():
-            if kw in content_lower:
-                score += weight
-        return score
+        
+        # Use simple max-score strategy (highest category weight found)
+        highest_weight = self.weights.get("routine", 0.1)
+        
+        for category, keywords in self.categories.items():
+            for kw in keywords:
+                if kw in content_lower:
+                    weight = self.weights.get(category, 0.1)
+                    if weight > highest_weight:
+                        highest_weight = weight
+                    break # Found a match for this category
+                    
+        return highest_weight
 
     def add_memory(self, agent_id: str, content: str, metadata: Optional[Dict[str, Any]] = None):
         if agent_id not in self.storage:

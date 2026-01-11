@@ -524,13 +524,28 @@ def run_experiment(args):
     else:
         print(f" Loaded prompt_template ({len(prompt_template)} chars)")
     
-    # Instantiate custom builder manually (bypassing factory to inject skill_registry)
-    # Note: FloodContextBuilder inherits from BaseAgentContextBuilder so API matches
+    # Initialize memory engine with weights from YAML
+    mem_cfg = household_config.get("memory_engine", {})
+    if mem_cfg.get("type") == "importance":
+        from broker.memory_engine import ImportanceMemoryEngine
+        memory_engine = ImportanceMemoryEngine(
+            window_size=MEMORY_WINDOW,
+            top_k_significant=2,
+            weights=mem_cfg.get("weights"),
+            categories=mem_cfg.get("categories")
+        )
+        print(" Using Importance-Based Memory Engine with custom weights")
+    else:
+        from broker.memory_engine import WindowMemoryEngine
+        memory_engine = WindowMemoryEngine(window_size=MEMORY_WINDOW)
+    
+    # Use Custom FloodContextBuilder for Baseline Parity
     context_builder = FloodContextBuilder(
         skill_registry=skill_registry,
         agents=sim.agents,
         environment=sim.environment.to_dict() if hasattr(sim.environment, 'to_dict') else {},
-        prompt_templates={"household": prompt_template, "default": prompt_template}  # Support both agent_type values
+        prompt_templates={"household": prompt_template, "default": prompt_template},  # Support both agent_type values
+        memory_engine=memory_engine # Inject the engine
     )
     
     # Initialize output directory
@@ -540,6 +555,8 @@ def run_experiment(args):
     
     # Initialize Governance Layer (Broker)
     broker = setup_governance(sim, context_builder, args.model, output_dir, skill_registry=skill_registry)
+    # Ensure broker uses the same memory engine
+    broker.memory_engine = memory_engine
     
     # LLM
     llm_invoke = create_llm_invoke(args.model)
@@ -564,40 +581,47 @@ def run_experiment(args):
         total_relocated = NUM_AGENTS - len(active_agents)
         print(f"Active agents: {len(active_agents)}")
         
-        # PHASE 1: Update memory for all agents BEFORE decision making (aligned with MCP)
+        # PHASE 1: Update memory for all agents BEFORE decision making
         for agent in active_agents:
-            # 1. CURRENT FLOOD EVENT (Detailed like MCP) - Process EARLY so it might be pushed out by stats
-            if env['flood_event'] and not agent.elevated:
-                if random.random() < agent.flood_threshold:
-                    agent.memory.append(f"Year {year}: Got flooded with $10,000 damage on my house.")
+            # 1. DYNAMIC DAMAGE CALCULATION
+            base_damage = 10000
+            damage = base_damage
+            if agent.elevated:
+                damage = base_damage * 0.1 # 90% reduction
+            
+            # 2. CURRENT FLOOD EVENT
+            if env['flood_event']:
+                if not agent.elevated:
+                    if random.random() < agent.flood_threshold:
+                        memory_text = f"Year {year}: Got flooded with ${damage:,.0f} damage on my house."
+                    else:
+                        memory_text = f"Year {year}: A flood occurred, but my house was spared damage."
                 else:
-                    agent.memory.append(f"Year {year}: A flood occurred, but my house was spared damage.")
-            elif env['flood_event'] and agent.elevated:
-                if random.random() < agent.flood_threshold:
-                    agent.memory.append(f"Year {year}: Despite elevation, the flood was severe enough to cause damage.")
-                else:
-                    agent.memory.append(f"Year {year}: A flood occurred, but my house was protected by its elevation.")
-            elif not env['flood_event']:
-                agent.memory.append(f"Year {year}: No flood occurred this year.")
+                    if random.random() < agent.flood_threshold:
+                        memory_text = f"Year {year}: Despite elevation, the flood was severe enough to cause ${damage:,.0f} damage."
+                    else:
+                        memory_text = f"Year {year}: A flood occurred, but my house was protected by its elevation."
+            else:
+                memory_text = f"Year {year}: No flood occurred this year."
+            
+            # Add to Importance Engine
+            memory_engine.add_memory(agent.id, memory_text)
 
             # 2. Grant availability memory
             if sim.grant_available:
-                agent.memory.append(f"Year {year}: Elevation grants are available.")
+                memory_engine.add_memory(agent.id, f"Year {year}: Elevation grants are available.")
             
             # 3. Neighborhood stats memory
             num_neighbors = NUM_AGENTS - 1
             if num_neighbors > 0:
                 elevated_pct = round(((total_elevated - (1 if agent.elevated else 0)) / num_neighbors) * 100)
-                agent.memory.append(f"Year {year}: I observe {elevated_pct}% of my neighbors have elevated homes.")
+                memory_engine.add_memory(agent.id, f"Year {year}: I observe {elevated_pct}% of my neighbors have elevated homes.")
                 relocated_pct = round((total_relocated / num_neighbors) * 100)
-                agent.memory.append(f"Year {year}: I observe {relocated_pct}% of my neighbors have relocated.")
+                memory_engine.add_memory(agent.id, f"Year {year}: I observe {relocated_pct}% of my neighbors have relocated.")
             
             # 4. Stochastic memory recall
             if random.random() < RANDOM_MEMORY_RECALL_CHANCE:
-                agent.memory.append(f"Suddenly recalled: '{random.choice(PAST_EVENTS)}'.")
-
-            # 5. Trim memory to window (Using MEMORY_WINDOW constant)
-            agent.memory = agent.memory[-MEMORY_WINDOW:]
+                memory_engine.add_memory(agent.id, f"Suddenly recalled: '{random.choice(PAST_EVENTS)}'.")
         
         # PHASE 2: Process decisions for all agents
         for agent in active_agents:

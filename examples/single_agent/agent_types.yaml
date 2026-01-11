@@ -13,6 +13,19 @@ household:
     tp_threshold_moderate: 0.05
     tp_threshold_high: 0.20
 
+  # Memory Engine Configuration (Customizable Importance)
+  memory_engine:
+    type: "importance"
+    weights:
+      flood: 1.0        # Most important
+      adaptation: 0.8   # e.g., payout efficiency, buyout, insurance
+      social: 0.5       # Neighbors and friends
+      routine: 0.1      # Daily non-events
+    categories:
+      flood: ["flood", "damage", "severity"]
+      adaptation: ["insurance", "payout", "buyout", "grant", "elevat", "relocat"]
+      social: ["neighbor", "friend", "community"]
+
   # Neutral Prompt Template (Config-Driven)
   prompt_template: |
     You are a homeowner in a city, with a strong attachment to your community. {elevation_status_text}
