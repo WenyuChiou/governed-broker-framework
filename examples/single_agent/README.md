@@ -133,5 +133,24 @@ python generate_old_vs_new_2x4.py
 
 ## References
 
-- Park et al. (2023) "Generative Agents" - Memory stream architecture
-- Chapter 8 Memory and Retrieval - Cognitive science foundations
+### PMT Validator Literature (Verified DOIs)
+
+| Validator Rule               | Citation                    | Key Finding                            | DOI                                                                                    |
+| ---------------------------- | --------------------------- | -------------------------------------- | -------------------------------------------------------------------------------------- |
+| R1: HIGH TP+CP → Block DN    | Grothmann & Reusswig (2006) | HIGH TP + HIGH CP → should take action | [`10.1007/s11069-005-8604-6`](https://doi.org/10.1007/s11069-005-8604-6)               |
+| R2: LOW TP → Block Relocate  | Rogers (1983)               | PMT original theory                    | Book Chapter                                                                           |
+| R3: Flood + Safe claim       | Bubeck et al. (2012)        | Flood experience ↑ threat perception   | [`10.1111/j.1539-6924.2011.01783.x`](https://doi.org/10.1111/j.1539-6924.2011.01783.x) |
+| R4: LOW CP → Block Expensive | Bamberg et al. (2017)       | CP stronger predictor than TP          | [`10.1016/j.jenvp.2017.08.001`](https://doi.org/10.1016/j.jenvp.2017.08.001)           |
+
+### Memory System References
+
+- **Park et al. (2023)** "Generative Agents" - Memory stream architecture ([arXiv:2304.03442](https://arxiv.org/abs/2304.03442))
+- **Chapter 8 Memory and Retrieval** - Cognitive science foundations (Atkinson & Shiffrin 1968, Miller 1956)
+- **Tulving (1972)** - Episodic vs Semantic memory distinction
+
+### Additional References
+
+See also:
+
+- [`docs/references/pmt_validator_references.md`](../../docs/references/pmt_validator_references.md) - Full validator literature
+- [`docs/references/pmt_flood_literature.bib`](../../docs/references/pmt_flood_literature.bib) - BibTeX for citation managers
