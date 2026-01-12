@@ -11,7 +11,7 @@ from typing import Callable, Optional
 
 _LOGGER = logging.getLogger(__name__)
 
-def create_llm_invoke(model: str) -> Callable[[str], str]:
+def create_llm_invoke(model: str, verbose: bool = False) -> Callable[[str], str]:
     """
     Creates an invocation function for a given model using LangChain-Ollama.
     Includes robust error collection and diagnostic logging.
@@ -42,9 +42,17 @@ Final Decision: {decision}"""
         llm = ChatOllama(model=model, num_predict=num_predict)
         
         def invoke(prompt: str) -> str:
+            if verbose:
+                # Log a small snippet of the prompt
+                print(f"\n [LLM:Input] (len={len(prompt)}) Prompt begins: {repr(prompt[:100])}...")
+            
             try:
                 response = llm.invoke(prompt)
                 content = response.content
+                
+                if verbose:
+                    print(f" [LLM:Output] Raw Content: {repr(content[:200])}...")
+                
                 if not content or not content.strip():
                     print(f" [LLM:Error] Model '{model}' returned empty content.")
                     _LOGGER.error(f"Empty raw output from {model}")

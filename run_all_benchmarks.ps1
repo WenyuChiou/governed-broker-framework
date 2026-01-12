@@ -1,7 +1,7 @@
 # Multi-Model Benchmark Suite
 # Runs 100-agent, 10-year simulations for 4 major models sequentially.
 
-$models = @("llama3.2:3b", "gemma3:4b", "deepseek-r1:8b", "gpt-oss:latest")
+$models = @("gemma3:4b", "llama3.2:3b", "deepseek-r1:8b", "gpt-oss:latest")
 $years = 10
 $agents = 100
 

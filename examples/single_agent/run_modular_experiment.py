@@ -196,15 +196,6 @@ class FinalParityHook:
             if random.random() < RANDOM_MEMORY_RECALL_CHANCE: self.runner.memory_engine.add_memory(agent.id, f"Suddenly recalled: '{random.choice(PAST_EVENTS)}'.")
 
     def post_step(self, agent, result):
-        if not self.prompt_inspected and self.sim.current_year == 1:
-            ctx = self.runner.broker.context_builder.build(agent.id)
-            prompt = self.runner.broker.context_builder.format_prompt(ctx)
-            print("\n" + "="*80)
-            print("--- INSPECTING YEAR 1 PROMPT (PARITY CHECK) ---")
-            print(prompt)
-            print("="*80 + "\n")
-            self.prompt_inspected = True
-
         if result.approved_skill and result.approved_skill.skill_name == "elevate_house":
             agent.flood_threshold = round(agent.flood_threshold * 0.2, 2)
             agent.flood_threshold = max(0.001, agent.flood_threshold)
@@ -242,7 +233,7 @@ class FinalParityHook:
         print(f"[Year {year}] Stats: {stats_str}")
 
 # --- 5. Main Runner ---
-def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_count: int = 100, custom_output: str = None):
+def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_count: int = 100, custom_output: str = None, verbose: bool = False):
     print(f"--- Llama {agents_count}-Agent 10-Year Benchmark (Final Parity Edition) ---")
     
     # 1. Load Registry & Prompt Template
@@ -306,7 +297,7 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
 
 
     
-    runner.run(llm_invoke=create_llm_invoke(model))
+    runner.run(llm_invoke=create_llm_invoke(model, verbose=verbose))
     
     # Finalize Audit (Generates CSVs and Summary)
     runner.broker.audit_writer.finalize()
@@ -352,5 +343,12 @@ if __name__ == "__main__":
     parser.add_argument("--years", type=int, default=10)
     parser.add_argument("--agents", type=int, default=100)
     parser.add_argument("--output", type=str, default=None)
+    parser.add_argument("--verbose", action="store_true", help="Enable verbose LLM logging")
     args = parser.parse_args()
-    run_parity_benchmark(model=args.model, years=args.years, agents_count=args.agents, custom_output=args.output)
+    run_parity_benchmark(
+        model=args.model, 
+        years=args.years, 
+        agents_count=args.agents, 
+        custom_output=args.output,
+        verbose=args.verbose
+    )

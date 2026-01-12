@@ -1,3 +1,0 @@
-agent_id,year,decision,flood,cumulative_state,elevated,has_insurance,relocated,raw_skill,outcome,id,trust_in_insurance,trust_in_neighbors
-Agent_1,1,Only House Elevation,False,Only House Elevation,True,False,False,elevate_house,LOGGED,Agent_1,0.24,0.38
-Agent_2,1,Do Nothing,False,Do Nothing,False,False,False,do_nothing,LOGGED,Agent_2,0.2,0.47
