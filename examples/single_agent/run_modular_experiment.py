@@ -17,7 +17,7 @@ from broker.components.skill_registry import SkillRegistry
 from broker.components.memory_engine import WindowMemoryEngine
 from broker.interfaces.skill_types import ExecutionResult
 from plot_results import plot_adaptation_results
-from examples.single_agent.run_experiment import create_llm_invoke
+from broker.utils.llm_utils import create_llm_invoke
 
 # --- 1. Research Constants (Parity with LLMABMPMT-Final.py) ---
 FLOOD_PROBABILITY = 0.2
@@ -304,7 +304,7 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
     parity = FinalParityHook(sim, runner)
     runner.hooks = {"pre_year": parity.pre_year, "post_step": parity.post_step, "post_year": parity.post_year}
 
-    from examples.single_agent.run_experiment import create_llm_invoke
+
     
     runner.run(llm_invoke=create_llm_invoke(model))
     

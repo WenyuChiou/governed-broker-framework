@@ -1,0 +1,16 @@
+{
+  "experiment_name": "v2_deepseek-r1_8b",
+  "agent_types": {
+    "household": {
+      "total": 2,
+      "decisions": {
+        "elevate_house": 1,
+        "do_nothing": 1
+      }
+    }
+  },
+  "total_traces": 2,
+  "validation_errors": 3,
+  "validation_warnings": 0,
+  "finalized_at": "2026-01-11T22:32:49.591101"
+}

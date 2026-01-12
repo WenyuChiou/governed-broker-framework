@@ -1,2 +1,0 @@
-agent_id,year,cumulative_state,elevated,has_insurance,relocated,trust_insurance,trust_neighbors
-Agent_1,1,Do Nothing,False,False,False,0.22,0.37

@@ -32,6 +32,7 @@ class SkillProposal:
     agent_type: str = "default"  # Agent type for multi-agent scenarios
     confidence: float = 1.0      # Agent's confidence in this choice (0.0-1.0)
     raw_output: str = ""
+    parsing_warnings: List[str] = field(default_factory=list)
     
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -40,7 +41,8 @@ class SkillProposal:
             "agent_type": self.agent_type,
             "reasoning": self.reasoning,
             "confidence": self.confidence,
-            "raw_output": self.raw_output[:500]
+            "raw_output": self.raw_output,
+            "parsing_warnings": self.parsing_warnings
         }
 
 

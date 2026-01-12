@@ -143,6 +143,8 @@ class GenericAuditWriter:
             skill_prop = t.get("skill_proposal", {})
             row["proposed_skill"] = skill_prop.get("skill_name")
             row["final_skill"] = t.get("approved_skill", {}).get("skill_name")
+            row["parsing_warnings"] = "|".join(skill_prop.get("parsing_warnings", []))
+            row["raw_output"] = skill_prop.get("raw_output", "")
             
             # 3. Reasoning (TP/CP Appraisal)
             reasoning = skill_prop.get("reasoning", {})

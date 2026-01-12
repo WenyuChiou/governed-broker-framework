@@ -26,6 +26,22 @@ The framework is built like a set of **Lego blocks**. Each component is independ
 
 ---
 
+## 🛡️ Challenges & Solutions
+
+![Challenges & Solutions](docs/challenges_solutions.png)
+
+| Challenge | Problem | Solution | Component |
+| :--- | :--- | :--- | :--- |
+| **Hallucination** | LLM generates invalid/non-existent actions | Skill Registry restricts to registered skills only | `SkillRegistry` |
+| **Asymmetric Information** | LLM lacks state awareness, makes infeasible decisions | Context Builder provides bounded observable state | `ContextBuilder` |
+| **Inconsistent Decisions** | Contradictory or illogical choices | Multi-stage validators check PMT consistency | `Validators` |
+| **No Traceability** | Cannot reproduce or audit decisions | Complete audit trail with timestamps | `AuditWriter` |
+| **Uncontrolled State Mutation** | Direct, unvalidated state changes | State Manager controls all state updates | `StateManager` |
+
+---
+
+---
+
 ## Multi-Agent Social Constructs (The "5 Pillars")
 
 To support complex social simulations, we define 5 core psychological constructs that drive agent decision-making. These are implemented as modular "Governance Detectors":
@@ -100,43 +116,44 @@ Respond with JSON: {"skill": "...", "parameters": {...}, "reasoning": "..."}
 
 This ensures LLM only proposes registered skills, which are then validated by the Skill Broker.
 
-### Core Execution Flow
-    
-    ```
-    ┌─────────────────────────────────────────────────────────────────────┐
-    │  1. CONTEXT BUILDING                                                │
-    │     StateManager → ContextBuilder                                   │
-    │     • Read agent's individual state (memory, role, resources)       │
-    │     • Read shared state (market_conditions, global_events)          │
-    │     • Inject available skills based on agent_types.yaml             │
-    └───────────────────────────┬─────────────────────────────────────────┘
-                                ▼
-    ┌─────────────────────────────────────────────────────────────────────┐
-    │  2. LLM DECISION                                                    │
-    │     ContextBuilder → LLM                                            │
-    │     • LLM receives bounded context + skill list                     │
-    │     • LLM outputs SkillProposal JSON                                │
-    │     • {"skill": "approve", "parameters": {...}, ...}                │
-    └───────────────────────────┬─────────────────────────────────────────┘
-                                ▼
-    ┌─────────────────────────────────────────────────────────────────────┐
-    │  3. VALIDATION                                                      │
-    │     ModelAdapter → SkillBrokerEngine → Validators                   │
-    │     • Parse LLM output into structured SkillProposal                │
-    │     • Admissibility: Is skill registered? Agent eligible?           │
-    │     • Feasibility: Preconditions met? (e.g. sufficient funds)       │
-    │     • Constraints: Institutional rules? (e.g. daily limits)         │
-    │     • If INVALID → Fallback to "do_nothing"                         │
-    └───────────────────────────┬─────────────────────────────────────────┘
-                                ▼
-    ┌─────────────────────────────────────────────────────────────────────┐
-    │  4. EXECUTION & STATE UPDATE                                        │
-    │     SkillBrokerEngine → Executor → StateManager                     │
-    │     • Execute validated skill effects                               │
-    │     • Update agent's individual state                               │
-    │     • Log to AuditWriter for traceability                           │
-    └─────────────────────────────────────────────────────────────────────┘
-    ```
+### 🔄 Universal Modular Information Flow
+
+The framework orchestrates a strict, data-driven loop to ensure LLM decisions are contextually grounded and physically consistent:
+
+1.  **Context Building (The Intake)**: 
+    -   `StateManager` aggregates real-time data from the three decoupled layers: **Individual** (private state/memory), **Social** (neighbor observation), and **Shared/Institutional** (environment/policy).
+    -   `ContextBuilder` synthesizes this data into a structured, bounded prompt, injecting the available action set defined in the `SkillRegistry`.
+2.  **LLM Decision (The Suggestion)**: 
+    -   The LLM generates a **SkillProposal**—a structured JSON suggestion containing the chosen action, parameters, and psychological reasoning (Threat/Coping Appraisal).
+3.  **Two-Tier Governance (The Filter)**:
+    -   **Tier 1: Identity & Admissibility**: Checks if the agent's current state permits the action (e.g., a relocated agent cannot buy flood insurance).
+    -   **Tier 2: Metadata & PMT Coherence**: Validates if the internal reasoning strings (e.g., `TP_REASON`) logically support the final decision based on protection motivation theory.
+4.  **Execution & Audit (The Impact)**:
+    -   Validated skills are committed by the `SimulationEngine`, which updates the physical environment (e.g., deducting funds, applying flood damage).
+    -   The `AuditWriter` captures the entire pipeline (Input → LLM reasoning → Validation Result → Final Outcome) into **CSV traces** for high-resolution analysis.
+
+---
+
+## 🏗️ Core Architecture Components (Universal Modules)
+
+### 1. Multi-Tier State Management
+To accurately model social-ecological systems, we partition state into three distinct security and visibility horizons:
+
+| Tier | Type | Visibility | Examples |
+| :--- | :--- | :--- | :--- |
+| **Individual** | Private | Self-Only | Income, Education, **Memory (Episodic History)**, Adaptation Status. |
+| **Social** | Observable | Neighbors | Social capital, Neighbor's recent decisions (e.g., 50% of neighbors elevated). |
+| **Shared / Inst.** | Global | All Agents | Flood severity, Year, Subsidy levels, Institutional trust scores. |
+
+### 2. The Biologically-Inspired Memory Engine
+Our `MemoryEngine` manages the agent's subjective perception of time:
+-   **Passive Recording**: Every event (flood, payout, neighborhood change) is timestamped and stored.
+-   **Active Salience Retrieval**: During `context_building`, the engine retrieves memories based on a **sliding window** or **salience threshold**, ensuring agents react to past trauma without suffering from "infinite context" errors.
+
+### 3. Dual-Validator System
+The `SkillBroker` categorized institutional and psychological rules into two critical tiers:
+-   **Strict Validators (Error)**: Guard against non-physical or illegal actions (e.g., double elevation). Violations trigger a **mandatory retry** with localized feedback.
+-   **Heuristic Validators (Warning)**: Flag "irrational" but physically possible behaviors (e.g., high threat but zero action). These allow for human-like diversity while ensuring researchers can flag anomalies in the audit trace.
     
     ---
     

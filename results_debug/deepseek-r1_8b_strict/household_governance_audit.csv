@@ -1,0 +1,7 @@
+﻿step_id,agent_id,proposed_skill,final_skill,status,retry_count,validated,failed_rules,timestamp,parsing_warnings,raw_output,reason_tp_label,reason_tp_reason,reason_cp_label,reason_cp_reason,error_messages
+1,Agent_1,elevate_house,elevate_house,APPROVED,0,True,,2026-01-11T22:32:21.465084,,"Threat Appraisal: High because most neighbors are relocating, suggesting imminent flood risk and personal vulnerability.
+Coping Appraisal: High because elevated homes have proven effective against floods, and I trust my neighbors' judgment.
+Final Decision: 2",High,"most neighbors are relocating, suggesting imminent flood risk and personal vulnerability.",High,"elevated homes have proven effective against floods, and I trust my neighbors' judgment.",
+2,Agent_2,do_nothing,do_nothing,REJECTED_FALLBACK,2,False,urgency_check,2026-01-11T22:32:35.131330,,"Threat Appraisal: High because the near-universal neighbor relocation suggests a very serious flood risk despite the lack of a recent flood.
+Coping Appraisal: Low because elevating the house seems financially prohibitive, and relocation is a major life change, while insurance provides limited protection and requires payment.
+Final Decision: 4",High,the near-universal neighbor relocation suggests a very serious flood risk despite the lack of a recent flood.,Low,"elevating the house seems financially prohibitive, and relocation is a major life change, while insurance provides limited protection and requires payment.",[Rule: urgency_check] Logic Error: High Threat but inaction chosen.

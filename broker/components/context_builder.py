@@ -80,6 +80,10 @@ class AttributeProvider(ContextProvider):
             state.update(agent.get_observable_state())
         if hasattr(agent, 'custom_attributes'):
             state.update(agent.custom_attributes)
+        
+        # Inject capabilities
+        if hasattr(agent, 'get_available_skills'):
+            context["available_skills"] = agent.get_available_skills()
 
 class EnvironmentProvider(ContextProvider):
     """Provides perception signals from the environment."""
@@ -145,6 +149,7 @@ class BaseAgentContextBuilder(ContextBuilder):
             "agent_id": agent_id,
             "agent_name": getattr(agent, 'name', agent_id),
             "agent_type": getattr(agent, 'agent_type', 'default'),
+            "available_skills": [],
         }
         
         # Trigger all providers in sequence

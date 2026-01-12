@@ -136,6 +136,10 @@ class UnifiedAdapter(ModelAdapter):
         skill_name = None
         reasoning = {}
         adjustment = None
+        parsing_warnings = []
+        
+        if not raw_output or not raw_output.strip():
+            parsing_warnings.append("Empty raw output from model")
         
         # 1. ATTEMPT PURE JSON PARSING
         try:
@@ -191,8 +195,10 @@ class UnifiedAdapter(ModelAdapter):
                     return SkillProposal(
                         skill_name=skill_name,
                         agent_id=agent_id,
+                        agent_type=agent_type,
                         reasoning=reasoning,
-                        raw_output=raw_output
+                        raw_output=raw_output,
+                        parsing_warnings=parsing_warnings
                     )
         except (json.JSONDecodeError, ValueError):
             pass
@@ -205,14 +211,22 @@ class UnifiedAdapter(ModelAdapter):
         # Update valid_skills for this specific type if not explicitly provided
         valid_skills = self.agent_config.get_valid_actions(agent_type)
         
+        # Use a more flexible detection for decision lines (handles truncation like "Final Decisi:")
         for line in lines:
             line_lower = line.strip().lower()
             
-            # Check for decision keywords from config
+            # Use regex for keywords to handle truncation (e.g., "final decisi:")
+            found_decision = False
             for keyword in keywords:
-                if line_lower.startswith(keyword):
-                    parts = line.split(":", 1)
-                    decision_text = parts[1].strip() if len(parts) > 1 else ""
+                # Create a regex that allows optional trailing chars or truncation
+                # e.g., "final decision:" matches "final decisi:" or "decision:"
+                kw_base = keyword.replace(":", "").strip()
+                # If the line starts with a significant prefix of the keyword
+                kw_pattern = rf"^(?:.*)?{re.escape(kw_base[:7])}.*?[:：]\s*(.*)"
+                match = re.search(kw_pattern, line_lower)
+                
+                if match:
+                    decision_text = match.group(1).strip()
                     decision_lower = decision_text.lower()
                     
                     # 1. Try to match a skill name from config aliases
@@ -221,6 +235,7 @@ class UnifiedAdapter(ModelAdapter):
                         skill_norm = skill.lower().replace("_", "").replace(" ", "")
                         if skill_norm in decision_norm:
                             skill_name = skill
+                            found_decision = True
                             break
                     
                     # 2. Try to match a numeric decision from skill map
@@ -229,8 +244,33 @@ class UnifiedAdapter(ModelAdapter):
                         for char in decision_text:
                             if char.isdigit() and char in skill_map:
                                 skill_name = skill_map.get(char)
+                                found_decision = True
                                 break
-                    break
+                    
+                    if found_decision:
+                        break
+            if found_decision:
+                break
+        
+        # 3. LAST RESORT: Search for any standalone number 1-4 or action name at the end of the text
+        if not skill_name:
+            skill_map = self.agent_config.get_skill_map(agent_type, context)
+            # Find the LAST instance of a number 1-4 in the entire text
+            # Often DeepSeek ends with "Final Decision: 4" but it's truncated
+            digit_matches = re.findall(r'(\d)', cleaned_output)
+            if digit_matches:
+                last_digit = digit_matches[-1]
+                if last_digit in skill_map:
+                    skill_name = skill_map[last_digit]
+                    parsing_warnings.append(f"Decision extracted via last-resort numeric search: {last_digit}")
+            
+            if not skill_name:
+                # Try finding valid skill names in the entire text
+                for skill in valid_skills:
+                    if skill.lower() in cleaned_output.lower():
+                        skill_name = skill
+                        parsing_warnings.append(f"Decision extracted via keyword presence: {skill}")
+                        break
             
             # Parse ADJ: for adjustment percentage
             adj_match = re.search(r"adj:\s*([0-9.]+%?)", line_lower)
@@ -285,7 +325,11 @@ class UnifiedAdapter(ModelAdapter):
         # Default skill from config
         if not skill_name:
             skill_name = config_parsing.get("default_skill", "do_nothing")
-            print(f"[ModelAdapter:Diagnostic] Warning: Could not parse decision for {agent_id}. Falling back to default: '{skill_name}'")
+            msg = f"Could not parse decision for {agent_id}. Falling back to default: '{skill_name}'"
+            parsing_warnings.append(msg)
+            print(f"[ModelAdapter:Diagnostic] Warning: {msg}")
+            # Log first 100 chars of output to help debug why it failed
+            print(f"[ModelAdapter:Diagnostic] Raw Output Snippet: {repr(cleaned_output[:100])}...")
             
         # Resolve to canonical ID
         if skill_name:
@@ -315,9 +359,9 @@ class UnifiedAdapter(ModelAdapter):
             found = set(reasoning.keys())
             missing = expected - found
             if missing:
-                # Use a specific prefix for easier filtering in logs
-                print(f"[ModelAdapter:Diagnostic] Warning: Missing constructs for '{agent_type}': {list(missing)}")
-                # We still return the reasoning, but we've flagged the issue
+                msg = f"Missing constructs for '{agent_type}': {list(missing)}"
+                parsing_warnings.append(msg)
+                print(f"[ModelAdapter:Diagnostic] Warning: {msg}")
 
         return SkillProposal(
             skill_name=skill_name,
@@ -325,7 +369,8 @@ class UnifiedAdapter(ModelAdapter):
             agent_type=agent_type,
             reasoning=reasoning,
             confidence=1.0,  # Placeholder
-            raw_output=raw_output
+            raw_output=raw_output,
+            parsing_warnings=parsing_warnings
         )
     
     def format_retry_prompt(self, original_prompt: str, errors: List[str]) -> str:
@@ -348,16 +393,26 @@ def deepseek_preprocessor(text: str) -> str:
     Removes <think>...</think> reasoning tags, but PRESERVES content
     if the model put the entire decision inside the think tag.
     """
+    if not text:
+        return ""
+        
     # 1. Try to get content outside tags
     cleaned = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL).strip()
     
-    # 2. If cleaned is too short, look inside tags
-    if len(cleaned) < 20:
-        match = re.search(r'<think>(.*?)</think>', text, flags=re.DOTALL)
+    # 2. If cleaned is empty, or very short, check inside think tags
+    if not cleaned or len(cleaned) < 20:
+        # Some models might fail to close the tag, so try to match what's there
+        match = re.search(r'<think>(.*)', text, flags=re.DOTALL)
         if match:
-            inner = match.group(1).strip()
-            if "decision" in inner.lower():
+            inner = match.group(1).replace('</think>', '').strip()
+            # If the only content is in the think tag, we should use it
+            # But try to focus on the latter part where the answer usually is
+            if any(kw in inner.lower() for kw in ["decide", "decision", "output", "interpret"]):
                 return inner
+            # Desperately return inner if cleaned is empty
+            if not cleaned:
+                return inner
+                
     return cleaned
 
 

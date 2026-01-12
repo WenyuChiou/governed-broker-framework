@@ -48,16 +48,16 @@ household:
     constructs:
       TP_LABEL:
         keywords: ["threat appraisal"]
-        regex: "threat appraisal:\\s*\\[?(Low|Med|High)\\]?"
+        regex: "threat appraisal:\\s*\\[?(Medium|Moderate|Low|Med|High)\\]?"
       TP_REASON:
         keywords: ["threat appraisal"]
-        regex: "threat appraisal:\\s*\\[?(?:Low|Med|High)\\]?[.,;]?\\s*(?:because)?\\s*(.+)"
+        regex: "threat appraisal:\\s*\\[?(?:Medium|Moderate|Low|Med|High)\\]?[.,;]?\\s*(?:because)?\\s*(.+)"
       CP_LABEL:
         keywords: ["coping appraisal"]
-        regex: "coping appraisal:\\s*\\[?(Low|Med|High)\\]?"
+        regex: "coping appraisal:\\s*\\[?(Medium|Moderate|Low|Med|High)\\]?"
       CP_REASON:
         keywords: ["coping appraisal"]
-        regex: "coping appraisal:\\s*\\[?(?:Low|Med|High)\\]?[.,;]?\\s*(?:because)?\\s*(.+)"
+        regex: "coping appraisal:\\s*\\[?(?:Medium|Moderate|Low|Med|High)\\]?[.,;]?\\s*(?:because)?\\s*(.+)"
 
   # Available Actions (mapped to Skill Registry IDs)
   actions:
