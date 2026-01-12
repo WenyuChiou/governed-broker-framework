@@ -11,212 +11,58 @@
 
 </div>
 
-## Lego-Style Modular Architecture 🧱
+## Modular Middleware Architecture
 
-The framework is built like a set of **Lego blocks**. Each component is independent and can be "plugged in" or swapped to build entirely different research experiments without changing the core engine.
+The framework is designed as a **governance middleware** that sits between the Agent's decision-making model (LLM) and the simulation environment (ABM). Each component is decoupled, allowing for flexible experimentation with different models, validation rules, and environmental dynamics.
 
-### The 4 Core Building Blocks
+### The 4 Core Modules
 
-| Block | Role | Analogy | Description |
+| Module | Role | Description |
+| :--- | :--- | :--- |
+| **Skill Registry** | *The Charter* | Defines *what* an agent can do (actions), including costs, constraints, and physical consequences. |
+| **Skill Broker** | *The Judge* | The central governance engine. Enforces institutional and psychological coherence on LLM proposals. |
+| **Sim Engine** | *The World* | Executes validated actions and manages the physical state evolution (e.g., flood damage). |
+| **Context Builder** | *The Lens* | Synthesizes a bounded view of reality (Personal Memory, Social Signals, Global State) for the agent. |
+
+---
+
+---
+
+## 🛡️ Core Problems Statement
+
+![Core Challenges & Framework Solutions](docs/challenges_solutions_v2.png)
+
+| Challenge | Problem Description | Framework Solution | Component |
 | :--- | :--- | :--- | :--- |
-| **Skill Registry** | The Charter | *The Law* | Defines *what* an agent can do and the physical constraints of those actions. |
-| **Skill Broker** | The Judge | *The Court* | Enforces institutional and psychological rules (e.g., PMT coherence) on LLM proposals. |
-| **Sim Engine** | The World | *The Physics* | Executes the results of approved actions and updates the environment (e.g., flood damage). |
-| **Context Builder** | The Lens | *The Senses* | Filters what an agent "sees" (Personal, Social, and Global tiers) to create the LLM prompt. |
+| **Hallucination** | LLM generates invalid actions (e.g., "build wall") | **Strict Registry**: Only registered `skill_id`s are accepted. | `SkillRegistry` |
+| **Context Limit** | Cannot dump entire history into prompt. | **Salience Memory**: Retrieves only top-k relevant past events. | `MemoryEngine` |
+| **Inconsistency** | Decisions contradict reasoning (Logical Drift). | **Thinking Validators**: Checks logical coherence between `TP`/`CP` and `Choice`. | `SkillBrokerEngine` |
+| **Opaque Decisions** | "Why did agent X do Y?" is lost. | **Structured Trace**: Logs Input, Reasoning, Validation, and Outcome. | `AuditWriter` |
+| **Unsafe Mutation** | LLM output breaks simulation state. | **Sandboxed Execution**: Validated skills are executed by engine, not LLM. | `SimulationEngine` |
 
 ---
 
-## 🛡️ Challenges & Solutions
+## Architecture
 
-![Challenges & Solutions](docs/challenges_solutions.png)
+### 1. Single-Agent Loop (Detailed)
 
-| Challenge | Problem | Solution | Component |
-| :--- | :--- | :--- | :--- |
-| **Hallucination** | LLM generates invalid/non-existent actions | Skill Registry restricts to registered skills only | `SkillRegistry` |
-| **Asymmetric Information** | LLM lacks state awareness, makes infeasible decisions | Context Builder provides bounded observable state | `ContextBuilder` |
-| **Inconsistent Decisions** | Contradictory or illogical choices | Multi-stage validators check PMT consistency | `Validators` |
-| **No Traceability** | Cannot reproduce or audit decisions | Complete audit trail with timestamps | `AuditWriter` |
-| **Uncontrolled State Mutation** | Direct, unvalidated state changes | State Manager controls all state updates | `StateManager` |
+This diagram illustrates the flow for a single agent step, highlighting the transformation from Raw Data to Validated Action.
 
----
+![Single-Agent Architecture](docs/single_agent_architecture_v3.png)
 
----
+### 2. Multi-Agent Interaction
 
-## Multi-Agent Social Constructs (The "5 Pillars")
+In multi-agent mode, social signals become a critical input.
 
-To support complex social simulations, we define 5 core psychological constructs that drive agent decision-making. These are implemented as modular "Governance Detectors":
+![Multi-Agent Architecture](docs/multi_agent_architecture_v3.png)
 
-1.  **Threat Perception (TP)**: Composed of preparedness, worry, and awareness.
-2.  **Coping Perception (CP)**: Composed of self-efficiency, mitigation-cost, and mitigation-efficiency.
-3.  **Stakeholder Perception (SP)**: Views on trustworthiness, expertise, and influence of governments, insurance, etc.
-4.  **Social Capital (SC)**: Capital embedded in social networks, trust, and norms.
-5.  **Place Attachment (PA)**: Emotional and physical bond to current location.
-
----
-
-## How it Plugs Together (Lego Flow)
-
-```mermaid
-graph LR
-    subgraph Perception ["1. The Lens (Context)"]
-        CB["ContextBuilder"] --"Tiers: Personal/Social/Env"--> LLM
-    end
-    
-    subgraph Governance ["2. The Judge (Broker)"]
-        LLM --"Proposal"--> SB["SkillBroker"]
-        SR["SkillRegistry"] --"Charter Rules"--> SB
-        VAL["Validators"] --"PMT Rules"--> SB
-    end
-    
-    subgraph Execution ["3. The World (Sim)"]
-        SB --"Approved Skill"--> SIM["SimulationEngine"]
-        SIM --"State Change"--> STATE["AgentState"]
-    end
-    
-    STATE --"Feedback"--> CB
-```
-
----
-
-## Skill Proposal Format
-
-The framework requires LLM to output decisions in a **structured Skill Proposal format**:
-
-```json
-{
-  "skill": "approve_transaction",
-  "parameters": {"amount": 5000},
-  "reasoning": "Transaction is within authorized limit and risk score is low."
-}
-```
-
-### Why Skill Proposal?
-
-| Aspect | Free-form LLM Output | Skill Proposal |
-|--------|---------------------|----------------|
-| **Parse-ability** | Requires complex NLP | Structured JSON, easy to parse |
-| **Validation** | Cannot validate | Skill Registry checks eligibility |
-| **Traceability** | Hard to log | Complete audit trail |
-| **State Safety** | Direct mutation | Validated before execution |
-| **Reproducibility** | Non-deterministic | Deterministic skill execution |
-
-### How does LLM know available skills?
-
-The **Context Builder** injects available skills into the prompt (defined in `agent_types.yaml`):
-
-```
-You are a Supervisor Agent. Available skills:
-- approve_transaction: Approve a pending request (parameters: id)
-- reject_transaction: Reject with reason
-- escalate_review: Send to human review
-- do_nothing: Wait for more info
-
-Respond with JSON: {"skill": "...", "parameters": {...}, "reasoning": "..."}
-```
-
-This ensures LLM only proposes registered skills, which are then validated by the Skill Broker.
-
-### 🔄 Universal Modular Information Flow
-
-The framework orchestrates a strict, data-driven loop to ensure LLM decisions are contextually grounded and physically consistent:
-
-1.  **Context Building (The Intake)**: 
-    -   `StateManager` aggregates real-time data from the three decoupled layers: **Individual** (private state/memory), **Social** (neighbor observation), and **Shared/Institutional** (environment/policy).
-    -   `ContextBuilder` synthesizes this data into a structured, bounded prompt, injecting the available action set defined in the `SkillRegistry`.
-2.  **LLM Decision (The Suggestion)**: 
-    -   The LLM generates a **SkillProposal**—a structured JSON suggestion containing the chosen action, parameters, and psychological reasoning (Threat/Coping Appraisal).
-3.  **Two-Tier Governance (The Filter)**:
-    -   **Tier 1: Identity & Admissibility**: Checks if the agent's current state permits the action (e.g., a relocated agent cannot buy flood insurance).
-    -   **Tier 2: Metadata & PMT Coherence**: Validates if the internal reasoning strings (e.g., `TP_REASON`) logically support the final decision based on protection motivation theory.
-4.  **Execution & Audit (The Impact)**:
-    -   Validated skills are committed by the `SimulationEngine`, which updates the physical environment (e.g., deducting funds, applying flood damage).
-    -   The `AuditWriter` captures the entire pipeline (Input → LLM reasoning → Validation Result → Final Outcome) into **CSV traces** for high-resolution analysis.
-
----
-
-## 🏗️ Core Architecture Components (Universal Modules)
-
-### 1. Multi-Tier State Management
-To accurately model social-ecological systems, we partition state into three distinct security and visibility horizons:
-
-| Tier | Type | Visibility | Examples |
-| :--- | :--- | :--- | :--- |
-| **Individual** | Private | Self-Only | Income, Education, **Memory (Episodic History)**, Adaptation Status. |
-| **Social** | Observable | Neighbors | Social capital, Neighbor's recent decisions (e.g., 50% of neighbors elevated). |
-| **Shared / Inst.** | Global | All Agents | Flood severity, Year, Subsidy levels, Institutional trust scores. |
-
-### 2. The Biologically-Inspired Memory Engine
-Our `MemoryEngine` manages the agent's subjective perception of time:
--   **Passive Recording**: Every event (flood, payout, neighborhood change) is timestamped and stored.
--   **Active Salience Retrieval**: During `context_building`, the engine retrieves memories based on a **sliding window** or **salience threshold**, ensuring agents react to past trauma without suffering from "infinite context" errors.
-
-### 3. Dual-Validator System
-The `SkillBroker` categorized institutional and psychological rules into two critical tiers:
--   **Strict Validators (Error)**: Guard against non-physical or illegal actions (e.g., double elevation). Violations trigger a **mandatory retry** with localized feedback.
--   **Heuristic Validators (Warning)**: Flag "irrational" but physically possible behaviors (e.g., high threat but zero action). These allow for human-like diversity while ensuring researchers can flag anomalies in the audit trace.
-    
-    ---
-    
-    ## Architecture
-    
-    ### Single-Agent Mode
-    
-    ![Single-Agent Architecture](docs/single_agent_architecture.png)
-    
-    **Flow**: Environment → Context Builder → LLM → Model Adapter → Skill Broker Engine → Validators → Executor → State
-    
-    #### V3 with Memory Layer
-    
-    ![Single-Agent V3](docs/single_agent_architecture_v3.png)
-    
-    **Added**: Memory Layer with `retrieve()` (active) and `add_memory()` (passive) operations.
-    
-    ### Multi-Agent Mode
-    
-    ![Multi-Agent Architecture](docs/multi_agent_architecture.png)
-    
-    **Flow**: Agents → LLM (Skill Proposal) → Governed Broker Layer (Context Builder + Validators) → State Manager with four layers: Individual (memory), Social (neighbor observation), Shared (environment), and Institutional (policy rules).
-    
-    #### V3 with Memory & Environment Layers
-    
-    ![Multi-Agent V3](docs/multi_agent_architecture_v3.png)
-    
-    **Added**:
-    - **Memory Layer**: Working (short-term) + Episodic (long-term)
-    - **Environment Layer**: Pure functions `process(event_A, event_B)`
-
----
-
-## Quick Start
-
-```bash
-# Install dependencies
-pip install -r requirements.txt
-
-# Run example experiment
-cd examples/skill_governed_flood
-python run_experiment.py --model llama3.2:3b --num-agents 100 --num-years 10
-```
-
----
-
-## Framework Evolution
+### Framework Evolution
 
 ![Framework Evolution](docs/framework_evolution.png)
 
-**No MCP → MCP v1 → Skill-Governed (v2)**: Progressive governance layers added for reliable LLM-ABM integration.
-
-### ⚠️ Framework Versions
-
-| Directory | Version | Experiment | Status |
-|-----------|---------|------------|--------|
-| `examples/v2_skill_governed/` | **Skill-Governed (v2)** | Exp 10 | ✅ Recommended |
-| `examples/v1_mcp_flood/` | MCP (v1) | Exp 9 | ⚠️ DEPRECATED |
-| `broker/legacy/` | Legacy broker components | - | ⚠️ DEPRECATED |
-
-> **Note**: Use `v2_skill_governed/` for all new experiments. Legacy code is in `broker/legacy/`.
-
-See [examples/README.md](examples/README.md) for detailed version comparison.
+**Migration Note**: 
+- **v1 (Legacy)**: Monolithic scripts.
+- **v2 (Current)**: Modular `SkillBrokerEngine` + `providers`. Use `examples/single_agent/run_modular_experiment.py`.
 
 ---
 
@@ -244,22 +90,42 @@ See [examples/README.md](examples/README.md) for detailed version comparison.
 | `StateManager` | `state_manager.py` | Multi-level state: Individual / Social / Shared / Institutional |
 | `SimulationEngine` | `engine.py` | ABM simulation loop with skill execution |
 
-### Provider Layer (`providers/`)
+### Provider Layer & Adapters (`providers/` & `broker/utils/`)
 
 | Component | File | Description |
 |-----------|------|-------------|
-| `OllamaProvider` | `ollama.py` | Default LLM provider (local Ollama) |
-| `OpenAIProvider` | `openai_provider.py` | OpenAI API provider |
-| `ProviderFactory` | `factory.py` | Dynamic provider instantiation |
-| `RateLimiter` | `rate_limiter.py` | Rate limiting for API calls |
+| **UnifiedAdapter** | `model_adapter.py` | 🧠 **Smart Parsing**: Handles model-specific quirks (e.g., DeepSeek `<think>` tags, Llama JSON). |
+| **LLM Utils** | `llm_utils.py` | ⚡ Centralized invocation with robust error handling and verbosity control. |
+| **OllamaProvider** | `ollama.py` | Default local provider. |
 
 ### Validator Layer (`validators/`)
 
-| Component | File | Description |
+We categorize governance rules into a 2x2 matrix:
+
+| Axis | **Strict (Block & Retry)** | **Heuristic (Warn & Log)** |
+| :--- | :--- | :--- |
+| **Physical / Identity** | *Impossible Actions* <br> (e.g., "Already elevated", "Insuring while relocated") | *Suspicious States* <br> (e.g., "Wealthy agent doing nothing") |
+| **Psychological / Thinking** | *Logical Fallacies* <br> (e.g., "High Threat + Low Cost $\rightarrow$ Do Nothing") | *Behavioral Anomalies* <br> (e.g., "High Anxiety but delaying action") |
+
+**Implementation:**
+- **Identity Rules**: Checks against current state (from `StateManager`).
+- **Thinking Rules**: Checks internal consistency of the LLM's reasoning (from `SkillProposal`).
+
+### Initial Data & Context Linking
+
+| Component | Role | Description |
 |-----------|------|-------------|
-| `BaseValidator` | `base.py` | Abstract validator interface |
-| `SkillValidators` | `skill_validators.py` | Configurable validators (see below) |
-| `ValidatorFactory` | `factory.py` | Dynamic validator loading from YAML |
+| **AttributeProvider** | *The Seed* | Loads potential agent profiles from CSV (`agent_initial_profiles.csv`) or generates them stochastically. |
+| **ContextBuilder** | *The Link* | dynamically pulls: <br> 1. **Static Traits** (from AttributeProvider) <br> 2. **Dynamic State** (from StateManager) <br> 3. **Social Signals** (from SocialNetwork) |
+
+```mermaid
+graph TD
+    CSV["data/profiles.csv"] --> AP["AttributeProvider"]
+    AP --"Initial Traits"--> SM["StateManager"]
+    SM --"Current State"--> CB["ContextBuilder"]
+    SN["SocialNetwork"] --"Neighbor Acts"--> CB
+    CB --"Prompt"--> LLM
+```
 
 #### Validation Pipeline Details
 

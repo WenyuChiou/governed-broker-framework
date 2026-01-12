@@ -11,198 +11,58 @@
 
 </div>
 
+## 模組化中間件架構 (Modular Middleware Architecture)
+
+本框架設計為位於代理人決策模型 (LLM) 與模擬環境 (ABM) 之間的 **治理中間件 (Governance Middleware)**。每個組件都是解耦的，允許靈活地實驗不同的模型、驗證規則與環境動態。
+
+### 4 大核心模組
+
+| 模組 | 角色 | 說明 |
+| :--- | :--- | :--- |
+| **Skill Registry** | *憲法* | 定義代理人 *能做什麼* (技能)，包含成本、限制與物理後果。 |
+| **Skill Broker** | *法官* | 核心治理引擎。強制執行制度與心理一致性規則 ( PMT Coherence) 於 LLM 提案之上。 |
+| **Sim Engine** | *世界* | 執行獲准的動作並管理物理狀態的演變 (例如：洪水損害)。 |
+| **Context Builder** | *感官* | 為代理人合成一個有界的現實視圖 (個人記憶、社交信號、全局狀態)。 |
+
 ---
 
-| **感知層 (Perception)** | `ContextBuilder` | *感官* | 動態整合代理人的個人、社交與全局狀態，生成受限的 LLM 提示詞。 |
-| **認知層 (Cognition)** | `SkillBroker` | *法官* | 「治理者」角色，負責驗證 LLM 的提案是否符合心理規則與物理限制。 |
-| **行動層 (Action)** | `SkillRegistry` | *憲法* | 定義代理人所有可能的動作、及其所需的成本、前提條件與執行效果。 |
-| **物理層 (Physics)** | `SimEngine` | *世界* | 執行獲准的動作，並更新模擬環境（例如：洪水淹沒與損害計算）。 |
-
 ---
 
-## 🛡️ 挑戰與解決方案 (Challenges & Solutions)
+## 🛡️ 核心問題陳述
 
-![挑戰與解決方案](docs/challenges_solutions.png)
+![核心挑戰與解決方案](docs/challenges_solutions_v2.png)
 
-| 挑戰 | 問題 | 解決方案 | 核心組件 |
+| 挑戰 | 問題描述 | 框架解決方案 | 組件 |
 | :--- | :--- | :--- | :--- |
-| **幻覺 (Hallucination)** | LLM 產生無效或不存在的動作 | Skill Registry 限制只能使用已註冊技能 | `SkillRegistry` |
-| **資訊不對稱** | LLM 缺乏狀態感知，做出不可行的決策 | Context Builder 提供有界的的可觀察狀態 | `ContextBuilder` |
-| **決策不一致** | 矛盾或不合邏輯的選擇 | 多階段驗證器檢查 PMT 心理一致性 | `Validators` |
-| **無法追蹤** | 無法重現或審計決策過程 | 完整的時間戳記審計軌跡 | `AuditWriter` |
-| **不受控狀態變更** | 直接且未經驗證的狀態修改 | State Manager 控制所有狀態更新與權限 | `StateManager` |
-
----
-
----
-
-## 👥 多代理人社交構念（「五大支柱」）
-
-為了支援複雜的社交模擬，我們定義了 5 個驅動代理人決策的核心心理構念。這些是以模組化的「治理探測器」實現的：
-
-1.  **威脅感知 (Threat Perception, TP)**：包含防範意識、憂慮程度與風險警覺。
-2.  **應對感知 (Coping Perception, CP)**：包含自我效能、調適成本與調適效率。
-3.  **利益相關者感知 (Stakeholder Perception, SP)**：對政府、保險公司等機構的信任度、專業度與影響力的看法。
-4.  **社交資本 (Social Capital, SC)**：嵌入社交網絡中的信任、規範與鄰里觀察。
-5.  **地方依附 (Place Attachment, PA)**：對當前居住地點的情感與物理連結。
-
----
-
-## 🧩 模組如何串聯 (樂高流程)
-
-```mermaid
-graph LR
-    subgraph Perception ["1. 感知層 (上下文)"]
-        CB["ContextBuilder"] --"層級: 個人/社交/環境"--> LLM
-    end
-    
-    subgraph Governance ["2. 認知層 (經紀人)"]
-        LLM --"提案"--> SB["SkillBroker"]
-        SR["SkillRegistry"] --"憲法規則"--> SB
-        VAL["驗證器"] --"PMT 規則"--> SB
-    end
-    
-    subgraph Execution ["3. 物理層 (模擬)"]
-        SB --"獲准技能"--> SIM["SimulationEngine"]
-        SIM --"狀態變更"--> STATE["AgentState"]
-    end
-    
-    STATE --"反饋"--> CB
-```
-
----
-
-## 挑戰與解決方案
-
-![挑戰與解決方案](docs/challenges_solutions.png)
-
-| 挑戰 | 問題 | 解決方案 | 元件 |
-|------|------|----------|------|
-| **幻覺 (Hallucination)** | LLM 產生無效決策 | Skill Registry 限制只能使用已註冊技能 | `SkillRegistry` |
-| **決策不一致** | 矛盾或不合邏輯的選擇 | 多階段驗證器檢查可配置規則 | `Validators` |
-| **領域耦合** | 核心層包含硬編碼邏輯 | 配置驅動的編排與通用基類 | `Core Engine` |
-| **無可追溯性** | 無法重現或稽核決策 | 完整的時間戳記審計軌跡 | `AuditWriter` |
-| **非控制狀態變更** | 直接、未驗證的狀態更改 | State Manager 控制所有狀態更新 | `StateManager` |
-
----
-
-## 框架 vs. 使用者擴充 (Framework vs. User Extension)
-
-為了保持關注點分離（Separation of Concerns），專案分為 **框架核心 (Framework Core)** 和 **使用者擴充 (User Extension)**。
-
-### 🛠️ 框架核心 (核心程式碼，建議不要修改)
-這些模組提供通用的編排邏輯，應保持與具體領域無關：
-- **`broker/`**: 核心註冊、解析、內容建構和審計邏輯。
-- **`simulation/`**: 通用的多層狀態管理和模擬循環。
-- **`providers/`**: LLM 連接器 (Ollama, OpenAI 等)。
-- **`validators/`**: 基礎 `AgentValidator` 引擎。
-
-### 🎨 使用者擴充 (可根據需求自訂)
-使用者在此處實現特定的模擬領域邏輯：
-- **`broker/agent_types.yaml`**: 定義代理人設定檔、技能和行為參數。
-- **`validators/coherence_rules.yaml`**: 定義領域專屬的一致性與安全規則。
-- **`examples/`**: 實驗專屬的代理人實現、環境模型和數據。
-- **`data/*.csv`**: 代理人族群數據與人口統計資料。
-
----
-
-## Skill Proposal 格式
-
-框架要求 LLM 以**結構化的 Skill Proposal 格式**輸出決策：
-
-```json
-{
-  "skill": "buy_insurance",
-  "parameters": {"duration": 1},
-  "reasoning": "今年洪水風險高..."
-}
-```
-
-### 為何使用 Skill Proposal？
-
-| 面向 | 自由格式 LLM 輸出 | Skill Proposal |
-|------|-------------------|----------------|
-| **可解析性** | 需要複雜的 NLP | 結構化 JSON，易於解析 |
-| **可驗證性** | 無法驗證 | Skill Registry 檢查資格 |
-| **可追溯性** | 難以記錄 | 完整審計軌跡 |
-| **狀態安全** | 直接變更 | 執行前已驗證 |
-| **可重現性** | 非確定性 | 確定性技能執行 |
-
-### LLM 如何知道可用技能？
-
-**Context Builder** 將可用技能注入提示詞中：
-
-```
-你是一個代理人。可用技能：
-- buy_insurance: 購買洪水保險 (duration: int)
-- elevate_house: 加高房屋 (僅能使用一次)
-- relocate: 遷移到更安全的區域 (永久)
-- do_nothing: 今年不採取任何行動
-
-請以 JSON 格式回覆: {"skill": "...", "parameters": {...}, "reasoning": "..."}
-```
-
-這確保 LLM 只會提出已註冊的技能，由 Skill Broker 進行驗證。
-
-### 🔄 通用模組化資訊流 (Universal Modular Information Flow)
-
-本框架透過嚴格的數據驅動循環，確保 LLM 的決策既具備上下文感應能力，又符合物理與邏輯的一致性：
-
-1.  **上下文建構 (Context Building - 輸入)**：
-    -   `StateManager` 從三個解耦層提取即時數據：**個人層**（私有狀態/記憶）、**社交層**（鄰居觀察）以及**共享/制度層**（環境、政策）。
-    -   `ContextBuilder` 將這些數據合成結構化、有界的提示詞（Prompt），並從 `SkillRegistry` 注入可用的動作集。
-2.  **LLM 決策 (LLM Decision - 提議)**：
-    -   LLM 生成 **SkillProposal**——一個結構化的 JSON 提案，包含所選動作、參數以及心理推理（威脅/應對評估）。
-3.  **兩階段治理 (Two-Tier Governance - 過濾)**：
-    -   **第一階段：身份與准入**：檢查代理人的當前狀態是否允許該動作（例如：已搬遷的代理人不能購買保險）。
-    -   **第二階段：元數據與 PMT 一致性**：驗證推理內容（如 `TP_REASON`）在邏輯上是否支持最終決策。
-4.  **執行與審計 (Execution & Audit - 影響)**：
-    -   獲准的技能由 `SimulationEngine` 執行，並更新物理環境（如扣除資金、套用損害）。
-    -   `AuditWriter` 將整個管線（輸入 → 推理 → 驗證結果 → 最終產出）記錄到 **CSV 審計軌跡**中，供高解析度分析使用。
-
----
-
-## 🏗️ 核心架構組件 (通用模組)
-
-### 1. 多層級狀態管理
-為了精確模擬社會-生態系統，我們將狀態劃分為三個不同的可見性維度：
-
-| 層次 | 類型 | 可見性 | 說明 |
-| :--- | :--- | :--- | :--- |
-| **個人層 (Individual)** | 私有 | 僅限自己 | 收入、教育程度、**情節記憶 (Memory)**、調適狀態。 |
-| **社交層 (Social)** | 可觀察 | 鄰居 | 社交資本、鄰居的近期決策（如：50% 的鄰居已加高房屋）。 |
-| **共享/制度層 (Shared)** | 全域 | 所有代理人 | 淹水嚴重程度、年份、補助金水位、制度信任分數。 |
-
-### 2. 生物啟發式記憶引擎
-我們的 `MemoryEngine` 管理代理人對時間的主觀感知：
--   **被動記錄**：每個事件（淹水、理賠、鄰里變化）都會被標記時間戳並儲存。
--   **主動顯著性檢索**：在 `context_building` 期間，引擎根據 **滑動窗口** 或 **顯著性門檻** 檢索相關記憶，確保代理人能對過去的創傷做出反應，同時避免「無限上下文」導致的錯誤。
-
-### 3. 雙驗證器系統 (Dual-Validator System)
-`SkillBroker` 將制度與心理規則劃分為兩個關鍵層級：
--   **嚴格驗證器 (Error)**：攔截非物理或非法的動作（例如：重複加高房屋）。違規會觸發**強制性的邏輯重試**並提供具體反饋。
--   **啟發式驗證器 (Warning)**：標記「不理性」但物理上可能的行為（例如：高威脅感知卻零行動）。這在允許類人多樣性的同時，確保研究人員能在審計軌跡中追蹤異常。
+| **幻覺 (Hallucination)** | LLM 產生無效動作 (例如 "造牆") | **嚴格註冊表**: 僅接受已註冊的 `skill_id`。 | `SkillRegistry` |
+| **上下文限制** | 無法將完整歷史塞入提示詞。 | **顯著性記憶**: 僅檢索 Top-k 相關的過去事件。 | `MemoryEngine` |
+| **不一致性** | 決策與推理矛盾 (邏輯漂移)。 | **思考驗證器**: 檢查 `TP`/`CP` 與 `Choice` 之間的邏輯連貫性。 | `SkillBrokerEngine` |
+| **不透明決策** | "為什麼代理人 X 做了 Y?" 行為佚失。 | **結構化軌跡**: 完整記錄 輸入、推理、驗證 與 結果。 | `AuditWriter` |
+| **不安全變更** | LLM 輸出破壞模擬狀態。 | **沙盒執行**: 獲准技能由引擎執行，而非 LLM 直接修改。 | `SimulationEngine` |
 
 ---
 
 ## 架構
 
-### 單代理人模式
+### 1. 單代理人迴圈 (Single-Agent Loop)
 
-![單代理人架構](docs/single_agent_architecture.png)
+此圖說明單個代理人步驟的流程，強調從原始數據到已驗證技能的轉換。
 
-**流程**: 環境 → Context Builder → LLM → Model Adapter → Skill Broker Engine → Validators → Executor → State
+![以單代理人架構](docs/single_agent_architecture_v3.png)
 
-### 多代理人模式
+### 2. 多代理人互動 (Multi-Agent Interaction)
 
-![多代理人架構](docs/multi_agent_architecture.png)
+在多代理人模式下，社交信號成為關鍵輸入。
 
-**流程**: Agents → LLM (Skill Proposal) → Governed Broker Layer (Context Builder + Validators) → State Manager，包含四層：Individual (memory)、Social (鄰居觀察)、Shared (環境)、Institutional (政策規則)。
+![多代理人架構](docs/multi_agent_architecture_v3.png)
 
----
+### 框架演進
 
-## 記憶與認知架構 (V3 特性)
+![Framework Evolution](docs/framework_evolution.png)
 
+**遷移說明**: 
+- **v1 (舊版)**: 單體腳本。
+- **v2 (當前)**: 模組化 `SkillBrokerEngine` + `providers`。請使用 `examples/single_agent/run_modular_experiment.py`。
 本框架現在包含一個明確的 **Memory Layer (記憶層)**，位於 Governed Broker 和 Simulation State 之間，增強了代理人的一致性與學習能力。
 
 ### 記憶元件
@@ -273,11 +133,42 @@ household:
   constructs: [TP, CP, SP, SC, PA]
 ```
 
-#### 通用 AgentValidator (`validators/agent_validator.py`)
+### 提供者層與適配器 (`providers/` & `broker/utils/`)
 
-框架使用 **元數據驅動** 的驗證系統。規則在 `agent_types.yaml` 和 `coherence_rules.yaml` 中配置。
+| 組件 | 檔案 | 說明 |
+|-----------|------|-------------|
+| **UnifiedAdapter** | `model_adapter.py` | 🧠 **智能解析**：處理特定模型的怪癖（例如 DeepSeek 的 `<think>` 標籤、Llama 的 JSON 格式）。 |
+| **LLM Utils** | `llm_utils.py` | ⚡ **集中調用**：具備穩健錯誤處理與詳細程度控制 (Verbosity control)。 |
+| **OllamaProvider** | `ollama.py` | 預設的本地提供者。 |
 
----
+### 驗證器層 (`validators/`)
+
+我們將治理規則分類為一個 2x2 的矩陣：
+
+| 維度 | **嚴格 (阻止並重試)** | **啟發式 (警告並記錄)** |
+| :--- | :--- | :--- |
+| **物理 / 身份規則** | *不可能的動作* <br> (例：「已加高房屋卻再次加高」、「已搬遷卻還買保險」) | *可疑狀態* <br> (例：「富裕代理人卻選擇什麼都不做」) |
+| **心理 / 思考規則** | *邏輯謬誤* <br> (例：「高威脅 + 低成本 $\rightarrow$ 選擇什麼都不做」) | *行為異常* <br> (例：「極度焦慮卻延遲行動」) |
+
+**實作方式：**
+- **身份規則 (Identity Rules)**：根據當前狀態（來自 `StateManager`）進行檢查。
+- **思考規則 (Thinking Rules)**：檢查 LLM 推理內容的內部一致性（來自 `SkillProposal`）。
+
+### 初始數據與上下文連結
+
+| 組件 | 角色 | 說明 |
+|-----------|------|-------------|
+| **AttributeProvider** | *種子* | 從 CSV (`agent_initial_profiles.csv`) 載入潛在代理人屬性或隨機生成。 |
+| **ContextBuilder** | *連結者* | 動態提取並整合： <br> 1. **靜態特徵** (來自 AttributeProvider) <br> 2. **動態狀態** (來自 StateManager) <br> 3. **社交信號** (來自 SocialNetwork) |
+
+```mermaid
+graph TD
+    CSV["data/profiles.csv"] --> AP["AttributeProvider"]
+    AP --"初始特徵"--> SM["StateManager"]
+    SM --"當前狀態"--> CB["ContextBuilder"]
+    SN["SocialNetwork"] --"鄰居行為"--> CB
+    CB --"提示詞 (Prompt)"--> LLM
+```
 
 ## 狀態管理
 
