@@ -14,7 +14,7 @@ from broker.components.social_graph import NeighborhoodGraph
 from broker.components.interaction_hub import InteractionHub
 from broker.components.context_builder import TieredContextBuilder
 from broker.components.skill_registry import SkillRegistry
-from broker.components.memory_engine import WindowMemoryEngine, ImportanceMemoryEngine
+from broker.components.memory_engine import WindowMemoryEngine, ImportanceMemoryEngine, HumanCentricMemoryEngine
 from broker.interfaces.skill_types import ExecutionResult
 from plot_results import plot_adaptation_results
 from broker.utils.llm_utils import create_llm_invoke
@@ -290,6 +290,15 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
             }
         )
         print(f" Using ImportanceMemoryEngine (active retrieval)")
+    elif memory_engine_type == "humancentric":
+        memory_engine = HumanCentricMemoryEngine(
+            window_size=3,
+            top_k_significant=2,
+            consolidation_prob=0.7,
+            decay_rate=0.1,
+            seed=42  # For reproducibility
+        )
+        print(f" Using HumanCentricMemoryEngine (emotional encoding + stochastic consolidation)")
     else:
         memory_engine = WindowMemoryEngine(window_size=3)
         print(f" Using WindowMemoryEngine (sliding window)")
@@ -361,8 +370,8 @@ if __name__ == "__main__":
     parser.add_argument("--output", type=str, default=None)
     parser.add_argument("--verbose", action="store_true", help="Enable verbose LLM logging")
     parser.add_argument("--memory-engine", type=str, default="window", 
-                        choices=["window", "importance"], 
-                        help="Memory retrieval strategy: window (sliding) or importance (active retrieval)")
+                        choices=["window", "importance", "humancentric"], 
+                        help="Memory retrieval strategy: window (sliding), importance (active retrieval), or humancentric (emotional encoding)")
     args = parser.parse_args()
     run_parity_benchmark(
         model=args.model, 

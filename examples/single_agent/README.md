@@ -1,68 +1,112 @@
-# Skill-Governed Flood Adaptation (Single Agent Baseline)
+# Flood Adaptation Single-Agent Experiment
 
-This example demonstrates the core functionality of the **Governed Broker Framework** in a household flood adaptation scenario. It is aligned with the 12/04 baseline experiment but enhanced with structured governance, logical validation, and detailed audit logging.
+## Overview
 
-## Core Architecture
+This experiment simulates household flood adaptation decisions using LLM-based agents with the Governed Broker Framework. It compares agent behavior with and without the governance layer.
 
-This experiment utilizes a **Three-Layer Architecture**:
-1.  **World Layer (`simulation/`)**: A stochastic flood simulation with environment states (flood events, grants, neighborhood adaptation).
-2.  **Governance Layer (`broker/`)**: Intercepts agent decisions.
-    -   **Unified Adapter**: Normalizes multi-model output and handles numeric-to-skill mapping.
-    -   **Agent Validator**: Enforces logical consistency (e.g., preventing inaction during high-perceived threat).
-3.  **Agent Layer (`examples/single_agent/`)**: Defines the specific prompt templates and domain skills.
+## Memory & Retrieval System
 
-## Hardened Universal Logic
+### Available Memory Engines
 
-The core modules have been "hardened" to ensure simulation integrity regardless of the specific agent configuration:
--   **Structured PMT Labels**: The system enforces $[Low/Med/High]$ parsing for Threat and Coping Appraisals by default.
--   **Numeric Mapping**: Skill decisions can be provided as numbers (1-4), which the broker automatically maps to canonical skill IDs based on the agent's current state (e.g., standard vs. elevated).
--   **Logical Consistency**: Core validators block "maladaptive" decisions to ensure agents behave rationally according to the Protection Motivation Theory.
+| Engine         | Description                                   | Parameters                             | Use Case                |
+| -------------- | --------------------------------------------- | -------------------------------------- | ----------------------- |
+| `window`       | Sliding window (last N items)                 | `window_size=3`                        | Simple, predictable     |
+| `importance`   | Active retrieval (recency + significance)     | `window_size=3`, `top_k_significant=2` | Retains critical events |
+| `humancentric` | Emotional encoding + stochastic consolidation | See below                              | Human-realistic memory  |
 
-### Validator Logic (Dual-Tier)
-The `AgentValidator` operates in two tiers to ensure robust governance:
+### Usage
 
-1.  **Tier 1: Identity & Status** (`identity_rules`)
-    -   **Precondition Checks**: Prevents invalid actions based on agent status.
-    -   *Example*: An agent cannot "elevate house" if it often "rents" or has already relocated.
-    -   *Example*: An agent cannot "buy insurance" if it already has it.
+```powershell
+# Default sliding window
+python run_modular_experiment.py --model llama3.2:3b --memory-engine window
 
-2.  **Tier 2: Thinking & Cognition** (`thinking_rules`)
-    -   **PMT Consistency**: Checks if the decision aligns with the agent's internal reasoning (Threat/Coping Appraisal).
-    -   **Relocation Anomaly (Low Threat)**: Explicitly blocks `relocate` if **Threat Appraisal is Low**, regardless of Coping Appraisal.
-        -   *Theory*: "No Threat = No Action". Panic relocation without threat is deemed irrational.
-    -   **Inaction Anomaly (High Threat)**: Blocks `do_nothing` if **Threat High** and **Coping High**.
+# Importance-based retrieval
+python run_modular_experiment.py --model gemma3:4b --memory-engine importance
+```
 
-## Getting Started
+### ImportanceMemoryEngine Parameters
 
-1.  **Generate Profiles**: Create initial agent demographic data.
-    ```bash
-    python generate_profiles.py
-    ```
-2.  **Run Experiment**: Execute the simulation for a specific model.
-    ```bash
-    python run_experiment.py --model gemma3:4b --num-agents 100 --num-years 10
-    ```
+All weights use 0-1 scale:
 
-## Results & Benchmark Comparison
+```python
+ImportanceMemoryEngine(
+    window_size=3,              # int: Recent items always included
+    top_k_significant=2,        # int: Top historical events
+    weights={
+        "critical": 1.0,        # float: Maximum importance (floods, damage)
+        "high": 0.8,            # float: High importance (claims, decisions)
+        "medium": 0.5,          # float: Medium importance (observations)
+        "routine": 0.1          # float: Minimal importance
+    }
+)
+```
 
-By applying the Skill-Governed Framework, we observe more structured and rational adaptation behavior compared to the unconstrained baseline.
+---
 
-### Original Baseline (Reference)
-The original simulation (without structured labeling or validation) often exhibited higher variance or "do-nothing" bias in certain models.
+## Behavioral Analysis: OLD Baseline vs NEW Governed Framework
 
-![Original Baseline](../../ref/overall_adaptation_by_year.jpg)
+### Summary
 
-### Skill-Governed Progression (Latest)
-With the framework applied, agents demonstrate more consistent adaptation profiles across different models (Gemma, Llama, GPT-OSS).
+| Model          | OLD Baseline    | NEW Governed     | Key Change          |
+| -------------- | --------------- | ---------------- | ------------------- |
+| Gemma 3 4B     | Elevation 44.9% | Insurance 43%    | Strategy shift      |
+| Llama 3.2 3B   | Elevation 83.3% | Do Nothing 67.4% | More conservative   |
+| DeepSeek-R1 8B | Elevation 67.8% | Elevation 82%    | Stronger preference |
+| GPT-OSS 20B    | Elevation 64%   | Elevation 77%    | +13% elevation      |
 
-| Model | Progression Plot |
-| :--- | :--- |
-| **Gemma 3:4b** | ![Gemma Progression](../../results/gemma3_4b/yearly_progression.png) |
-| **Llama 3.2:3b** | ![Llama Progression](../../results/llama3.2_3b/yearly_progression.png) |
-| **GPT-OSS** | ![GPT-OSS Progression](../../results/gpt-oss_latest/yearly_progression.png) |
+### Validation Statistics
 
-## Audit Trails
-All decisions are logged in `results/<model>/household_audit.jsonl` with full traces of:
--   The original LLM prompt and raw response.
--   Parsed structured evaluations (TP_LABEL, CP_LABEL).
--   Validator issues and retry history.
+| Model          | Approval Rate      | Blocked | Errors |
+| -------------- | ------------------ | ------- | ------ |
+| Gemma 3 4B     | 100.0% (1000/1000) | 0       | 0      |
+| Llama 3.2 3B   | 81.1% (811/1000)   | 189     | 295    |
+| DeepSeek-R1 8B | 78.9% (789/1000)   | 211     | 322    |
+| GPT-OSS 20B    | 88.5% (885/1000)   | 115     | 125    |
+
+### What the Framework Blocks
+
+The governance framework blocks decisions that violate PMT (Protection Motivation Theory) rules:
+
+1. **High Threat + Do Nothing**: Blocked when agent perceives high flood threat but chooses inaction
+2. **Invalid Decision Format**: Blocked when LLM output doesn't match expected options
+3. **Inconsistent Reasoning**: Blocked when TP/CP assessment contradicts final decision
+
+### Why Behavioral Differences Occur
+
+1. **Prompt Standardization**: OLD uses freeform prompts; NEW uses structured templates
+2. **Decision Validation**: NEW enforces PMT-consistent decisions
+3. **Memory Injection**: NEW explicitly formats memory as bulleted list
+4. **Trust Verbalization**: NEW includes quantified trust values (0-1 scale)
+
+---
+
+## Results Structure
+
+```
+results/
+├── Gemma_3_4B/                  # OLD baseline
+├── gemma3_4b_strict/            # NEW governed
+│   ├── audit_summary.json       # Validation stats
+│   ├── household_governance_audit.csv
+│   ├── simulation_log.csv       # Decision traces
+│   └── comparison_results.png
+└── old_vs_new_comparison_2x4.png
+```
+
+## Running Experiments
+
+```powershell
+# Quick test (5 agents, 3 years)
+python run_modular_experiment.py --model llama3.2:3b --agents 5 --years 3
+
+# Full experiment
+python run_modular_experiment.py --model gemma3:4b --agents 100 --years 10
+
+# Generate comparison chart
+python generate_old_vs_new_2x4.py
+```
+
+## References
+
+- Park et al. (2023) "Generative Agents" - Memory stream architecture
+- Chapter 8 Memory and Retrieval - Cognitive science foundations
