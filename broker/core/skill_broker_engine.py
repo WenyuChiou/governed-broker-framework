@@ -105,7 +105,17 @@ class SkillBrokerEngine:
         # ① Build bounded context (READ-ONLY)
         context = self.context_builder.build(agent_id)
         context_hash = self._hash_context(context)
-        memory_pre = context.get("memory", []).copy() if context.get("memory") else []
+        
+        # Robust memory extraction for audit (handles nesting and stringification)
+        raw_mem = context.get("memory")
+        if raw_mem is None and "personal" in context:
+            raw_mem = context["personal"].get("memory")
+            
+        if isinstance(raw_mem, str):
+            # Convert bulleted string back to list for cleaner JSON logs
+            memory_pre = [m.lstrip("- ").strip() for m in raw_mem.split("\n") if m.strip()]
+        else:
+            memory_pre = list(raw_mem).copy() if raw_mem else []
         
         # ② LLM output → ModelAdapter → SkillProposal
         prompt = self.context_builder.format_prompt(context)
@@ -137,6 +147,10 @@ class SkillBrokerEngine:
         while not all_valid and retry_count < self.max_retries:
             retry_count += 1
             errors = [e for v in validation_results for e in v.errors]
+            
+            # Real-time Console Feedback
+            print(f"[Governance] Blocked '{skill_proposal.skill_name}' for {agent_id} (Attempt {retry_count}). Reasons: {errors}")
+            
             retry_prompt = self.model_adapter.format_retry_prompt(prompt, errors)
             raw_output = llm_invoke(retry_prompt)
             
@@ -149,6 +163,9 @@ class SkillBrokerEngine:
             if skill_proposal:
                 validation_results = self._run_validators(skill_proposal, validation_context)
                 all_valid = all(v.valid for v in validation_results)
+        
+        if not all_valid and retry_count >= self.max_retries:
+             print(f"[Governance] Max retries reached for {agent_id}. Falling back to default skill.")
         
         # ④ Create ApprovedSkill or use fallback
         if all_valid:

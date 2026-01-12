@@ -39,11 +39,23 @@ class ExperimentRunner:
         self.step_counter = 0
         self.memory_engine = memory_engine or WindowMemoryEngine(window_size=3)
         self.hooks = hooks or {}
+        
+        self.hooks = hooks or {}
 
     def run(self, llm_invoke: Callable):
         """Standardized simulation loop."""
         run_id = f"exp_{random.randint(1000, 9999)}"
         print(f"Starting Experiment: {self.config.experiment_name} | Model: {self.config.model}")
+        
+        # 0. Fool-proof Schema Validation
+        if hasattr(self.broker, 'model_adapter') and getattr(self.broker.model_adapter, 'agent_config', None):
+            config = self.broker.model_adapter.agent_config
+            types = set(a.agent_type for a in self.agents.values() if hasattr(a, 'agent_type'))
+            print(f"[Governance:Diagnostic] Initializing with Profile: {self.config.governance_profile}")
+            for atype in types:
+                issues = config.validate_schema(atype)
+                for issue in issues:
+                    print(f"[Governance:Diagnostic] {issue}")
         
         for year in range(1, self.config.num_years + 1):
             env = self.sim_engine.advance_year()
@@ -54,7 +66,11 @@ class ExperimentRunner:
                 hook_ctx = type('HookContext', (), {'event': 'pre_year', 'year': year, 'env': env, 'agents': self.agents})
                 self.hooks["pre_year"](hook_ctx)
             
-            active_agents = [a for a in self.agents.values() if not getattr(a, 'relocated', False)]
+            # Filter only active agents (Generic approach)
+            active_agents = [
+                a for a in self.agents.values() 
+                if getattr(a, 'is_active', True)
+            ]
             
             for agent in active_agents:
                 self.step_counter += 1
@@ -183,6 +199,10 @@ class ExperimentBuilder:
         from broker import GenericAuditWriter, AuditConfig
         from validators import AgentValidator
         from broker.components.context_builder import create_context_builder
+        import os
+
+        # Set environment variable for validator/config loader
+        os.environ["GOVERNANCE_PROFILE"] = self.profile
         
         # 1. Setup Skill Registry
         reg = self.skill_registry or SkillRegistry()
@@ -216,7 +236,7 @@ class ExperimentBuilder:
         validator = AgentValidator(config_path=self.agent_types_path)
         from broker import UnifiedAdapter
         adapter = UnifiedAdapter(
-            agent_type="household", 
+            agent_type="default", 
             config_path=self.agent_types_path
         )
         

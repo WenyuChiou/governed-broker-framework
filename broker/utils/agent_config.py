@@ -36,6 +36,7 @@ class ValidationRule:
 @dataclass  
 class CoherenceRule:
     """Construct coherence rule."""
+    id: str = "unknown"
     construct: Optional[str] = None # Single construct (legacy)
     conditions: Optional[List[Dict[str, Any]]] = None # Multi-construct: [{'construct': 'TP', 'values': ['L']}]
     state_field: Optional[str] = None
@@ -161,6 +162,44 @@ class AgentTypeConfig:
             for rule in rules_list
         ]
 
+    def validate_schema(self, agent_type: str) -> List[str]:
+        """
+        Validate that the configuration for an agent type is consistent.
+        Returns a list of error/warning messages.
+        """
+        issues = []
+        cfg = self.get(agent_type)
+        if not cfg:
+            return [f"Agent type '{agent_type}' not found in config."]
+
+        # 1. Check Profile
+        profile = os.environ.get("GOVERNANCE_PROFILE", "default").lower()
+        gov = cfg.get("governance", {})
+        if profile != "default" and profile not in gov:
+            issues.append(f"WARNING: Governance profile '{profile}' not found for '{agent_type}'. Falling back to default.")
+
+        # 2. Check Thinking Rules vs Constructs
+        config_parsing = cfg.get("parsing", {})
+        constructs = config_parsing.get("constructs", {})
+        rules = self.get_thinking_rules(agent_type)
+        for rule in rules:
+            target_constructs = []
+            # For legacy format: id IS the construct name if no explicit construct field
+            c_field = rule.construct
+            if c_field and not rule.conditions:
+                target_constructs.append(c_field)
+            
+            if rule.conditions:
+                for cond in rule.conditions:
+                    if "construct" in cond:
+                        target_constructs.append(cond["construct"])
+            
+            for c in target_constructs:
+                if c not in constructs:
+                    issues.append(f"ERROR: Thinking rule '{rule.id}' references unknown construct '{c}'.")
+
+        return issues
+
     def get_thinking_rules(self, agent_type: str) -> List[CoherenceRule]:
         """Get cognitive/thinking rules."""
         cfg = self.get(agent_type)
@@ -168,7 +207,8 @@ class AgentTypeConfig:
         gov = cfg.get("governance", {})
         
         # Load profile-specific rules if they exist, otherwise fallback
-        rules = gov.get(profile, {}).get("thinking_rules", cfg.get("thinking_rules", cfg.get("coherence_rules", {})))
+        rules_container = gov.get(profile, {}) if profile in gov else gov.get("default", {})
+        rules = rules_container.get("thinking_rules", cfg.get("thinking_rules", cfg.get("coherence_rules", {})))
         
         # DEBUG
         # print(f"DEBUG_CONFIG: Loading thinking_rules for {agent_type} (Profile: {profile}). Found {len(rules)} entries.")
@@ -180,7 +220,8 @@ class AgentTypeConfig:
             
         return [
             CoherenceRule(
-                construct=rule.get("construct", rule.get("id")),
+                id=rule.get("id", rule.get("construct", "unknown")),
+                construct=rule.get("construct", rule.get("id") if "conditions" not in rule else None),
                 conditions=rule.get("conditions"),
                 expected_levels=rule.get("when_above", rule.get("when_true")),
                 blocked_skills=rule.get("blocked_skills"),

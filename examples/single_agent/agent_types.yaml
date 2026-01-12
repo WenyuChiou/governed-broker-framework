@@ -1,32 +1,7 @@
-# =============================================================================
-# Agent Type Configuration for v2-2 Clean Experiment
-# =============================================================================
-# Single source of truth for agent configuration.
-# This is experiment-specific, NOT the framework default.
-
 household:
-  description: "Household agents making flood adaptation decisions"
+  description: "Household agents making adaptation decisions based on PMT"
   
-  # Domain Parameters (Simulation-specific)
-  parameters:
-    # No cost parameters in original v2 experiment
-    tp_threshold_moderate: 0.05
-    tp_threshold_high: 0.20
-
-  # Memory Engine Configuration (Customizable Importance)
-  # memory_engine:
-  #   type: "importance"
-  #   weights:
-  #     flood: 1.0        # Most important
-  #     adaptation: 0.8   # e.g., payout efficiency, buyout, insurance
-  #     social: 0.5       # Neighbors and friends
-  #     routine: 0.1      # Daily non-events
-  #   categories:
-  #     flood: ["flood", "damage", "severity"]
-  #     adaptation: ["insurance", "payout", "buyout", "grant", "elevat", "relocat"]
-  #     social: ["neighbor", "friend", "community"]
-
-  # Neutral Prompt Template (Config-Driven)
+  # Neutralzed Prompt Template (No behavioral anchors)
   prompt_template: |
     You are a homeowner in a city, with a strong attachment to your community. {elevation_status_text}
     Your memory includes:
@@ -45,21 +20,14 @@ household:
     
     Now, choose one of the following actions:
     {options_text}
-    Note: If no flood occurred this year, since no immediate threat, most people would choose “Do Nothing.”
+    Note: If no flood occurred this year, since no immediate threat, most people would choose "Do Nothing."
                                                                                                   
     Please respond using the exact format below. Do NOT include any markdown symbols:
     Threat Appraisal: [Low/Med/High] because [One sentence summary of how threatened you feel by any remaining flood risks.]
     Coping Appraisal: [Low/Med/High] because [One sentence summary of how well you think you can cope or act.]
     Final Decision: [1, 2, 3, or 4 only]
-  
-  # Audit Configuration
-  audit:
-    output_dir: "results"
-    experiment_name: "v2-2_clean"
-    log_prompt: true
-    log_llm_response: true
-  
-  # Parsing Configuration
+
+  # Parsing & Skill Mapping
   parsing:
     decision_keywords: ["final decision:", "decision:", "decide:"]
     default_skill: "do_nothing"
@@ -76,7 +44,7 @@ household:
       "2": "relocate"
       "3": "do_nothing"
     
-    # Construct mappings for validation
+    # Construct mappings for validation and logging
     constructs:
       TP_LABEL:
         keywords: ["threat appraisal"]
@@ -90,8 +58,8 @@ household:
       CP_REASON:
         keywords: ["coping appraisal"]
         regex: "coping appraisal:\\s*\\[?(?:Low|Med|High)\\]?\\s*because\\s*(.+)"
-  
-  # Available Actions (mapped to skills)
+
+  # Available Actions (mapped to Skill Registry IDs)
   actions:
     - id: buy_insurance
       aliases: ["FI", "insurance"]
@@ -105,62 +73,13 @@ household:
     - id: do_nothing
       aliases: ["DN", "nothing", "wait"]
       description: "Take no action this year"
-  
-  # Validation Rules (PMT Coherence)
-  coherence_rules:
-    # Rule 1: Urgency Check (Inaction Warning)
-    # If Threat Appraisal is High (H), "Do Nothing" is flagged but allowed to avoid over-adaptation
-    urgency_check:
-      construct: TP_LABEL
-      when_above: ["H"]
-      blocked_skills: ["do_nothing"]
-      level: ERROR
-      message: "Logic Error: High Threat Appraisal but attempted inaction (do_nothing). Please prioritize protection."
-    
-    # Rule 2: Coping-Action Alignment (Hardened to ERROR)
-    # If Coping Appraisal is Low (L), expensive actions are blocked to prevent irrational over-adaptation.
-    coping_alignment:
-      construct: CP_LABEL
-      when_above: ["L"]
-      blocked_skills: ["elevate_house", "relocate"]
-      level: ERROR
-      message: "Logic Error: Low Coping Appraisal but attempted expensive action. Please reconsider based on your limited ability to act."
 
-    # Rule 3: Relocation Anomaly (Retry Required)
-    # PMT Theory: Threat Appraisal is the primary gate. If Threat is Low (L), there is no "Protection Motivation".
-    # Therefore, drastic actions like Relocation are illogical regardless of Coping Appraisal.
-    relocation_anomaly:
-      conditions:
-        - { construct: TP_LABEL, values: ["L"] }
-      blocked_skills: ["relocate"]
-      level: ERROR
-      message: "Logical Error: Relocation is illogical when Threat Appraisal is Low (PMT: No Protection Motivation). Please strictly align decision with Low Threat."
-
-    # Rule 4: Elevation Anomaly (New)
-    # Block House Elevation when Threat is Low to prevent unrealistic proactive behavior.
-    elevation_anomaly:
-      conditions:
-        - { construct: TP_LABEL, values: ["L"] }
-      blocked_skills: ["elevate_house"]
-      level: ERROR
-      message: "Logical Error: House Elevation is irrational when Threat Appraisal is Low. Please choose a more proportionate response like Do Nothing."
-
-
-  # Tier 1: Identity/Status Rules (Status-based blocks)
-
-  identity_rules:
-    elevation_block:
-      precondition: elevated
-      blocked_skills: ["elevate_house"]
-      level: ERROR
-      message: "Status Error: Your house is already elevated. You cannot elevate it again."
-
-  # Governance Profiles (Selectable via CLI --governance-profile)
+  # Governance Profiles
   governance:
     strict:
       thinking_rules:
-        urgency_check: { construct: TP_LABEL, when_above: ["H"], blocked_skills: ["do_nothing"], level: ERROR, message: "Logic Error: High Threat Appraisal but attempted inaction. Please prioritize protection." }
-        coping_alignment: { construct: CP_LABEL, when_above: ["L"], blocked_skills: ["elevate_house", "relocate"], level: ERROR, message: "Logic Error: Low Coping Appraisal but attempted expensive action." }
+        urgency_check: { construct: TP_LABEL, when_above: ["H"], blocked_skills: ["do_nothing"], level: ERROR, message: "Logic Error: High Threat but inaction chosen." }
+        coping_alignment: { construct: CP_LABEL, when_above: ["L"], blocked_skills: ["elevate_house", "relocate"], level: ERROR, message: "Logic Error: Low Coping but expensive action attempted." }
         relocation_anomaly: { conditions: [{ construct: TP_LABEL, values: ["L"] }], blocked_skills: ["relocate"], level: ERROR, message: "Logical Error: Relocation is illogical when Threat is Low." }
         elevation_anomaly: { conditions: [{ construct: TP_LABEL, values: ["L"] }], blocked_skills: ["elevate_house"], level: ERROR, message: "Logical Error: Elevation is irrational when Threat is Low." }
       identity_rules:
@@ -169,24 +88,6 @@ household:
     relaxed:
       thinking_rules:
         urgency_check: { construct: TP_LABEL, when_above: ["H"], blocked_skills: ["do_nothing"], level: WARNING, message: "Suggestion: High Threat detected. Protection is recommended." }
-        coping_alignment: { construct: CP_LABEL, when_above: ["L"], blocked_skills: ["elevate_house", "relocate"], level: WARNING, message: "Observation: You are taking a high-cost action despite low coping appraisal." }
-        relocation_anomaly: { conditions: [{ construct: TP_LABEL, values: ["L"] }], blocked_skills: ["relocate"], level: WARNING, message: "Observation: Relocation feels excessive for Low Threat." }
-        elevation_anomaly: { conditions: [{ construct: TP_LABEL, values: ["L"] }], blocked_skills: ["elevate_house"], level: WARNING, message: "Observation: Elevation feels excessive for Low Threat." }
+        coping_alignment: { construct: CP_LABEL, when_above: ["L"], blocked_skills: ["elevate_house", "relocate"], level: WARNING, message: "Observation: High-cost action despite low coping." }
       identity_rules:
         elevation_block: { precondition: elevated, blocked_skills: ["elevate_house"], level: WARNING, message: "Note: Already elevated." }
-
-  # Simulation Constants (Aligned with LLMABMPMT-Final.py)
-  simulation:
-    memory_window: 3
-    random_memory_recall_chance: 0.2
-    grant_probability: 0.5
-    num_agents_default: 100
-  
-  # Initial Memory Pool (Past Events)
-  past_events:
-    - "A flood event about 15 years ago caused $500,000 in city-wide damages; my neighborhood was not impacted at all"
-    - "Some residents reported delays when processing their flood insurance claims"
-    - "A few households in the area elevated their homes before recent floods"
-    - "The city previously introduced a program offering elevation support to residents"
-    - "News outlets have reported a possible trend of increasing flood frequency and severity in recent years"
-

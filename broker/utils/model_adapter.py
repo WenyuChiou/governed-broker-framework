@@ -66,7 +66,7 @@ class UnifiedAdapter(ModelAdapter):
     
     def __init__(
         self,
-        agent_type: str = "household",
+        agent_type: str = "default",
         preprocessor: Optional[Callable[[str], str]] = None,
         valid_skills: Optional[set] = None,
         config_path: str = None
@@ -126,7 +126,11 @@ class UnifiedAdapter(ModelAdapter):
         cleaned_output = self.preprocessor(raw_output)
         
         agent_id = context.get("agent_id", "unknown")
-        agent_type = context.get("agent_type", "default")
+        agent_type = context.get("agent_type", self.agent_type)
+        
+        # Determine valid skills for THIS specific agent type
+        valid_skills = self.agent_config.get_valid_actions(agent_type)
+        config_parsing = self.agent_config.get_parsing_config(agent_type) or self.config
         
         # Initialize results
         skill_name = None
@@ -146,14 +150,14 @@ class UnifiedAdapter(ModelAdapter):
             if isinstance(data, dict):
                 # Extract skills/decisions
                 raw_decision = str(data.get("decision", data.get("Final Decision", ""))).lower()
-                for skill in self.valid_skills:
+                for skill in valid_skills:
                     if skill.lower() in raw_decision:
                         skill_name = skill
                         break
                 
                 # Skill mapping logic: Smart Resolution
                 if not skill_name:
-                    skill_map = self.agent_config.get_skill_map(self.agent_type, context)
+                    skill_map = self.agent_config.get_skill_map(agent_type, context)
                     
                     # Try to find a numeric match in the map
                     for char in raw_decision:
@@ -164,7 +168,7 @@ class UnifiedAdapter(ModelAdapter):
                     # Universal Numeric Mapper (Fallback if no map or match found)
                     if not skill_name:
                         # Fallback: Use index of actions list in YAML (1-indexed)
-                        raw_actions = self.agent_config.get(self.agent_type).get("actions", [])
+                        raw_actions = self.agent_config.get(agent_type).get("actions", [])
                         for char in raw_decision:
                             if char.isdigit():
                                 idx = int(char) - 1
@@ -173,7 +177,7 @@ class UnifiedAdapter(ModelAdapter):
                                     break
                 
                 # Extract dynamic constructs (Config-driven)
-                constructs = self.config.get("constructs", {})
+                constructs = self.agent_config.get(agent_type).get("parsing", {}).get("constructs", {})
                 for key, construct_cfg in constructs.items():
                     # keywords are keys in JSON
                     for kw in construct_cfg.get("keywords", []):
@@ -195,7 +199,11 @@ class UnifiedAdapter(ModelAdapter):
 
         # 2. FALLBACK TO REGEX PARSING (Existing logic)
         lines = cleaned_output.strip().split('\n')
-        keywords = self.config.get("decision_keywords", ["decide:", "decision:"])
+        parsing_cfg = self.agent_config.get(agent_type).get("parsing", {})
+        keywords = parsing_cfg.get("decision_keywords", ["decide:", "decision:"])
+        
+        # Update valid_skills for this specific type if not explicitly provided
+        valid_skills = self.agent_config.get_valid_actions(agent_type)
         
         for line in lines:
             line_lower = line.strip().lower()
@@ -206,11 +214,19 @@ class UnifiedAdapter(ModelAdapter):
                     decision_text = line.split(":", 1)[1].strip() if ":" in line else ""
                     decision_lower = decision_text.lower()
                     
-                    # Try to match a skill from config
-                    for skill in self.valid_skills:
+                    # 1. Try to match a skill name from config aliases
+                    for skill in valid_skills:
                         if skill.lower() in decision_lower:
                             skill_name = skill
                             break
+                    
+                    # 2. Try to match a numeric decision from skill map
+                    if not skill_name:
+                        skill_map = self.agent_config.get_skill_map(agent_type, context)
+                        for char in decision_lower:
+                            if char.isdigit() and char in skill_map:
+                                skill_name = skill_map.get(char)
+                                break
                     break
             
             # Parse ADJ: for adjustment percentage
@@ -234,20 +250,22 @@ class UnifiedAdapter(ModelAdapter):
             if line_lower.startswith("interpret:"):
                 reasoning["interpret"] = line.split(":", 1)[1].strip() if ":" in line else ""
             
-            # Parse PMT_EVAL: TP=X CP=Y ...
-            elif line_lower.startswith("pmt_eval:"):
-                content = line.split(":", 1)[1].strip()
-                # Split by spaces to find assignments like TP=H
+            # Generic KV-style construct parsing (e.g., PSY_EVAL: A=1 B=2)
+            eval_match = re.search(r"([a-z0-9_]+)_eval:\s*(.+)", line_lower)
+            if eval_match:
+                prefix = eval_match.group(1).upper()
+                content = eval_match.group(2).strip()
                 parts = content.split()
                 for part in parts:
                     if "=" in part:
                         k, v = part.split("=", 1)
-                        reasoning[k.upper()] = v
-                reasoning["pmt_eval_raw"] = content
+                        # We use prefix to avoid collisions across different schemas
+                        reasoning[f"{prefix}_{k.upper()}"] = v
+                reasoning[f"{prefix}_raw"] = content
 
 
             # Config-driven Construct Parsing (Generic)
-            constructs = self.config.get("constructs", {})
+            constructs = config_parsing.get("constructs", {})
 
             for key, construct_cfg in constructs.items():
                 # Check for keywords
@@ -293,7 +311,7 @@ class UnifiedAdapter(ModelAdapter):
         
         # Default skill from config
         if not skill_name:
-            skill_name = self.config.get("default_skill", "do_nothing")
+            skill_name = config_parsing.get("default_skill", "do_nothing")
             
         # Resolve to canonical ID
         if skill_name:
@@ -303,11 +321,36 @@ class UnifiedAdapter(ModelAdapter):
         if adjustment is not None:
             reasoning["adjustment"] = adjustment
         
+        # 3. Config-driven Construct Parsing (Generic Fallback for Text)
+        config_parsing = self.agent_config.get(agent_type).get("parsing", {})
+        constructs_cfg = config_parsing.get("constructs", {})
+        for key, construct_cfg in constructs_cfg.items():
+            if key in reasoning and reasoning[key]:
+                continue
+            
+            pattern = construct_cfg.get("regex")
+            if pattern:
+                match = re.search(pattern, cleaned_output, re.IGNORECASE | re.MULTILINE)
+                if match:
+                    # If regex has a group, use it. Otherwise use the whole match.
+                    reasoning[key] = match.group(1).strip() if match.groups() else match.group(0).strip()
+
+        # 6. Post-Parsing Robustness: Completeness Check
+        if config_parsing and "constructs" in config_parsing:
+            expected = set(config_parsing["constructs"].keys())
+            found = set(reasoning.keys())
+            missing = expected - found
+            if missing:
+                # Use a specific prefix for easier filtering in logs
+                print(f"[ModelAdapter:Diagnostic] Warning: Missing constructs for '{agent_type}': {list(missing)}")
+                # We still return the reasoning, but we've flagged the issue
+
         return SkillProposal(
             skill_name=skill_name,
             agent_id=agent_id,
+            agent_type=agent_type,
             reasoning=reasoning,
-            confidence=1.0,
+            confidence=1.0,  # Placeholder
             raw_output=raw_output
         )
     
