@@ -5,12 +5,26 @@ Distinguishes between:
 1. Global State (e.g., Inflation, Sea Level)
 2. Regional/Local State (e.g., Tract Paving Density, Market Sector Demand)
 3. Institutional State (e.g., Government Budget)
+4. Social State (e.g., Neighbor observations, network effects)
 
 Serves as the single source of truth for "Non-Personal" state.
 """
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from broker.components.social_graph import SocialGraph
 
 class TieredEnvironment:
+    """
+    Multi-layered environment state manager.
+    
+    Layers:
+    - global_state: Simulation-wide variables (year, flood, policy)
+    - local_states: Spatial/regional variables (tract-level)
+    - institutions: Institutional agent states (FEMA, insurers)
+    - social_states: Observable neighbor states (for social influence)
+    """
+    
     def __init__(self, global_state: Optional[Dict[str, Any]] = None):
         # Layer 1: Global (Sim-wide)
         self.global_state: Dict[str, Any] = global_state or {}
@@ -20,7 +34,15 @@ class TieredEnvironment:
         
         # Layer 3: Institutional (Government, Companies)
         self.institutions: Dict[str, Dict[str, Any]] = {}
+        
+        # Layer 4: Social (Neighbor observations)
+        self.social_states: Dict[str, Dict[str, Any]] = {}
+        
+        # Optional: Social Graph for neighbor lookups
+        self._social_graph: Optional['SocialGraph'] = None
 
+    # ===== Setters =====
+    
     def set_global(self, key: str, value: Any):
         """Set a global variable."""
         self.global_state[key] = value
@@ -30,6 +52,66 @@ class TieredEnvironment:
         if location_id not in self.local_states:
             self.local_states[location_id] = {}
         self.local_states[location_id][key] = value
+    
+    def set_social(self, agent_id: str, key: str, value: Any):
+        """Set an observable social state for an agent."""
+        if agent_id not in self.social_states:
+            self.social_states[agent_id] = {}
+        self.social_states[agent_id][key] = value
+    
+    # ===== Social Graph Integration =====
+    
+    def set_social_graph(self, graph: 'SocialGraph'):
+        """Attach a social graph for neighbor lookups."""
+        self._social_graph = graph
+    
+    def get_neighbor_observations(self, agent_id: str) -> Dict[str, Any]:
+        """
+        Get aggregated observations of an agent's neighbors.
+        
+        Returns:
+            Dict with counts and rates, e.g.:
+            {
+                "neighbor_count": 5,
+                "elevated_count": 2,
+                "insured_count": 3,
+                "elevated_rate": 0.4,
+                "insured_rate": 0.6
+            }
+        """
+        if not self._social_graph:
+            return {"neighbor_count": 0}
+        
+        neighbors = self._social_graph.get_neighbors(agent_id)
+        if not neighbors:
+            return {"neighbor_count": 0}
+        
+        # Aggregate observable states
+        elevated_count = 0
+        insured_count = 0
+        relocated_count = 0
+        
+        for nid in neighbors:
+            nstate = self.social_states.get(nid, {})
+            if nstate.get("elevated", False):
+                elevated_count += 1
+            if nstate.get("has_insurance", False):
+                insured_count += 1
+            if nstate.get("relocated", False):
+                relocated_count += 1
+        
+        n = len(neighbors)
+        return {
+            "neighbor_count": n,
+            "elevated_count": elevated_count,
+            "insured_count": insured_count,
+            "relocated_count": relocated_count,
+            "elevated_rate": elevated_count / n if n > 0 else 0.0,
+            "insured_rate": insured_count / n if n > 0 else 0.0,
+            "relocated_rate": relocated_count / n if n > 0 else 0.0,
+        }
+
+    # ===== Getters =====
 
     def get_observable(self, path: str, default: Any = None) -> Any:
         """
@@ -39,6 +121,7 @@ class TieredEnvironment:
         - "global.inflation"
         - "local.T001.paving_density"
         - "institutions.fema.budget"
+        - "social.Agent_1.elevated"
         """
         parts = path.split('.')
         
@@ -61,6 +144,11 @@ class TieredEnvironment:
                  if len(parts) == 3:
                     inst_id, key = parts[1], parts[2]
                     return self.institutions.get(inst_id, {}).get(key, default)
+            
+            elif scope == "social":
+                if len(parts) == 3:
+                    agent_id, key = parts[1], parts[2]
+                    return self.social_states.get(agent_id, {}).get(key, default)
                     
         except Exception:
             return default
@@ -72,5 +160,7 @@ class TieredEnvironment:
         return {
             "global": self.global_state,
             "local": self.local_states,
-            "institutions": self.institutions
+            "institutions": self.institutions,
+            "social": self.social_states
         }
+
