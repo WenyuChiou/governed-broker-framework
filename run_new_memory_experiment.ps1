@@ -4,7 +4,6 @@
 $models = @("gemma3:4b", "llama3.2:3b", "deepseek-r1:8b", "gpt-oss:latest")
 
 foreach ($model in $models) {
-    $sanitized = $model -replace ":", "_"
     Write-Host "========================================="
     Write-Host "Running: $model with HumanCentric Memory"
     Write-Host "========================================="

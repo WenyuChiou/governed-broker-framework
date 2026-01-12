@@ -16,13 +16,38 @@ This experiment simulates household flood adaptation decisions using LLM-based a
 
 ### Usage
 
-```powershell
-# Default sliding window
-python run_modular_experiment.py --model llama3.2:3b --memory-engine window
+# Human-centric (emotional encoding + stochastic consolidation)
 
-# Importance-based retrieval
-python run_modular_experiment.py --model gemma3:4b --memory-engine importance
-```
+python run_modular_experiment.py --model gemma3:4b --memory-engine humancentric
+
+````
+
+### HumanCentricMemoryEngine Parameters
+
+All weights and probabilities use 0-1 scale:
+
+```python
+HumanCentricMemoryEngine(
+    window_size=3,              # int: Recent items always included
+    top_k_significant=2,        # int: Top historical events to retrieve
+    consolidation_prob=0.7,     # float [0-1]: Base P(consolidate) for important items
+    decay_rate=0.1,             # float [0-1]: Exponential decay rate (λ)
+    emotional_weights={
+        "fear": 1.0,            # Flood damage, high threat
+        "regret": 0.9,          # "I should have elevated"
+        "relief": 0.8,          # Insurance claim success
+        "trust_shift": 0.7,     # Trust changes
+        "observation": 0.4,     # Neutral social observation
+        "routine": 0.1          # No notable event
+    },
+    source_weights={
+        "personal": 1.0,        # MY house flooded
+        "neighbor": 0.7,        # Neighbor's experience
+        "community": 0.5,       # Community statistics
+        "abstract": 0.3         # General information
+    }
+)
+````
 
 ### ImportanceMemoryEngine Parameters
 
