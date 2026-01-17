@@ -89,7 +89,9 @@ class SkillBrokerEngine:
             )
             
         self.audit_writer = audit_writer
-        self.max_retries = max_retries
+        # Use config-driven default if not explicitly passed
+        self.max_retries = max_retries if max_retries != 3 else self.config.get_governance_retries(max_retries)
+        self.max_reports = self.config.get_governance_max_reports()
         self.log_prompt = log_prompt
         
         # Statistics
@@ -128,6 +130,7 @@ class SkillBrokerEngine:
         
         # ① Build bounded context (READ-ONLY)
         context = self.context_builder.build(agent_id, step_id=step_id, run_id=run_id, env_context=env_context)
+        self._inject_filtered_skills(context, agent_type)
         context_hash = self._hash_context(context)
 
         # Phase 28: Dynamic Skill Retrieval (RAG)
@@ -161,6 +164,7 @@ class SkillBrokerEngine:
             context["available_skills"] = [s.skill_id for s in retrieved_skills]
             # Also store full definitions for ContextBuilder to show descriptions if needed
             context["retrieved_skill_definitions"] = retrieved_skills
+            self._inject_options_text(context, [s.skill_id for s in retrieved_skills])
 
         # Robust memory extraction for audit (handles nesting and stringification)
         raw_mem = context.get("memory")
@@ -203,6 +207,7 @@ class SkillBrokerEngine:
                 skill_proposal = self.model_adapter.parse_output(raw_output, {
                     "agent_id": agent_id,
                     "agent_type": agent_type,
+                    "retry_attempt": initial_attempts - 1,
                     **context
                 })
                 
@@ -293,6 +298,48 @@ class SkillBrokerEngine:
             if not any("Confidence" in p for p in label_parts) and "Confidence" in reasoning:
                 label_parts.append(f"Confidence: {reasoning['Confidence']}")
 
+
+        validation_context = {
+            "agent_state": context,
+            "agent_type": agent_type,
+            "env_state": env_context, # The "New Standard" source of truth
+            **env_context             # Flat injection for legacy validator lookups
+        }
+        
+        validation_results = self._run_validators(skill_proposal, validation_context)
+        all_validation_history = list(validation_results)
+        all_valid = all(v.valid for v in validation_results)
+        
+        # Track initial errors for audit summary
+        initial_rule_ids = set()
+        for v in validation_results:
+            initial_rule_ids.update(v.metadata.get("rules_hit", []))
+        
+        # Diagnostic summary for User
+        if self.log_prompt:
+            reasoning = skill_proposal.reasoning or {}
+            label_parts = []
+            
+            # Dynamic Label Extraction from reasoning
+            # Try to get labels (config-driven)
+            if self.config:
+                log_fields = self.config.get_log_fields(agent_type)
+                for field_name in log_fields:
+                    val = None
+                    # Try various casing and suffix variants
+                    for variants in [field_name, field_name.upper(), f"{field_name}_LABEL", field_name.capitalize(), field_name.lower()]:
+                        if variants in reasoning:
+                            val = reasoning[variants]
+                            break
+                    if val:
+                        label_parts.append(f"{field_name}: {val}")
+            
+            # Legacy Fallback for Strategy/Confidence if not in log_fields
+            if not any("Strategy" in p for p in label_parts) and "Strategy" in reasoning:
+                label_parts.append(f"Strategy: {reasoning['Strategy']}")
+            if not any("Confidence" in p for p in label_parts) and "Confidence" in reasoning:
+                label_parts.append(f"Confidence: {reasoning['Confidence']}")
+
             # Determine governance summary (Moved to end for consolidated reporting)
             pass
         
@@ -300,12 +347,38 @@ class SkillBrokerEngine:
         retry_count = 0
         while not all_valid and retry_count < self.max_retries:
             retry_count += 1
-            errors = [e for v in validation_results for e in v.errors]
             
-            # Real-time Console Feedback (Hidden for noise reduction as requested)
-            # logger.warning(f"[Governance] Blocked '{skill_proposal.skill_name}' for {agent_id} (Attempt {retry_count}). Reasons: {errors}")
+            # Build InterventionReports for explainable governance
+            from ..interfaces.skill_types import InterventionReport
+            intervention_reports = []
+            for v in validation_results:
+                if v and hasattr(v, 'errors') and v.errors:
+                    for error_msg in v.errors:
+                        report = InterventionReport(
+                            rule_id=v.metadata.get("rules_hit", ["unknown_rule"])[0] if v.metadata.get("rules_hit") else "unknown_rule",
+                            blocked_skill=skill_proposal.skill_name if skill_proposal else "unknown",
+                            violation_summary=error_msg,
+                            suggested_correction=v.metadata.get("suggestion"),
+                            severity="ERROR" if not v.valid else "WARNING",
+                            domain_context=v.metadata
+                        )
+                        intervention_reports.append(report)
             
-            retry_prompt = self.model_adapter.format_retry_prompt(prompt, errors)
+            # Fall back to raw error strings if no reports were built
+            # If skill_proposal is None (parse failure), add a specific format violation report
+            if not skill_proposal:
+                from ..interfaces.skill_types import InterventionReport
+                errors_to_send = [InterventionReport(
+                    rule_id="format_violation",
+                    blocked_skill="parsing",
+                    violation_summary="LLM output failed to match required delimiter or JSON structure.",
+                    suggested_correction="Ensure your response follows the specified format including all required fields within the delimiters.",
+                    severity="ERROR"
+                )]
+            else:
+                errors_to_send = intervention_reports if intervention_reports else [e for v in validation_results if v and hasattr(v, 'errors') for e in v.errors]
+            
+            retry_prompt = self.model_adapter.format_retry_prompt(prompt, errors_to_send, max_reports=self.max_reports)
             res = llm_invoke(retry_prompt)
             
             # Use same logic to handle tuple vs str for retry call
@@ -324,7 +397,8 @@ class SkillBrokerEngine:
             skill_proposal = self.model_adapter.parse_output(raw_output, {
                 **context,
                 "agent_id": agent_id,
-                "agent_type": agent_type
+                "agent_type": agent_type,
+                "retry_attempt": retry_count
             })
             
             if skill_proposal:
@@ -332,30 +406,34 @@ class SkillBrokerEngine:
                 all_validation_history.extend(validation_results)
                 all_valid = all(v.valid for v in validation_results)
                 if not all_valid:
-                    logger.warning(f"[Governance:Retry] Attempt {retry_count} failed validation for {agent_id}. Errors: {[e for v in validation_results for e in v.errors]}")
+                    errors_list = [e for v in validation_results if v and hasattr(v, 'errors') for e in v.errors]
+                    logger.warning(f"[Governance:Retry] Attempt {retry_count} failed validation for {agent_id}. Errors: {errors_list}")
             else:
                 logger.warning(f"[Governance:Retry] Attempt {retry_count} produced unparsable output for {agent_id}.")
         
         if not all_valid and retry_count >= self.max_retries:
              # Building diagnostic info for Fallout
-             errors = [e for v in validation_results for e in v.errors]
+             errors = [e for v in validation_results if v and hasattr(v, 'errors') for e in v.errors]
              logger.error(f"[Governance:Fallout] CRITICAL: Max retries ({self.max_retries}) reached for {agent_id}.")
-             logger.error(f"  - Final Choice Rejected: '{skill_proposal.skill_name}'")
+             final_choice = skill_proposal.skill_name if skill_proposal else "Unknown"
+             logger.error(f"  - Final Choice Rejected: '{final_choice}'")
              logger.error(f"  - Blocked By: {errors}")
              
              # Show reasoning/ratings for diagnosis
              ratings = []
-             for k, v in skill_proposal.reasoning.items():
-                 if "_LABEL" in k: ratings.append(f"{k}={v}")
+             if skill_proposal and skill_proposal.reasoning:
+                 for k, v in skill_proposal.reasoning.items():
+                     if "_LABEL" in k: ratings.append(f"{k}={v}")
              if ratings: logger.error(f"  - Ratings: {' | '.join(ratings)}")
              
-             # Generic Reason Extraction (Look for keys ending in _REASON or naming 'Reason')
-             reason_keys = [k for k in skill_proposal.reasoning.keys() if "_REASON" in k.upper() or "REASON" in k.upper()]
-             if reason_keys:
-                 reason_text = skill_proposal.reasoning.get(reason_keys[0], "")
-                 if isinstance(reason_text, dict): 
-                     reason_text = reason_text.get("reason", str(reason_text))
-                 logger.error(f"  - Agent Motivation: {reason_text}")
+             # Phase 32: Audit Reasoning for Grounding (only if proposal exists)
+             if skill_proposal:
+                 reason_keys = [k for k in skill_proposal.reasoning.keys() if "_REASON" in k.upper() or "REASON" in k.upper()]
+                 if reason_keys:
+                     reason_text = skill_proposal.reasoning.get(reason_keys[0], "")
+                     if isinstance(reason_text, dict): 
+                         reason_text = reason_text.get("reason", str(reason_text))
+                     logger.error(f"  - Agent Motivation: {reason_text}")
              
              # Determine fallout action: prefer original choice if parsed, otherwise default
              fallout_skill = skill_proposal.skill_name if (skill_proposal and skill_proposal.parse_layer != "default") else self.skill_registry.get_default_skill()
@@ -477,10 +555,61 @@ class SkillBrokerEngine:
             skill_proposal=skill_proposal,
             approved_skill=approved_skill,
             execution_result=execution_result,
-            validation_errors=[e for v in validation_results for e in v.errors],
+            validation_errors=[e for v in validation_results if v and hasattr(v, 'errors') for e in v.errors],
             retry_count=retry_count
         )
     
+    def _get_action_ids(self, agent_type: str) -> List[str]:
+        base_type = self.config.get_base_type(agent_type) if hasattr(self.config, "get_base_type") else agent_type
+        cfg = self.config.get(base_type) if self.config else {}
+        actions = cfg.get("actions", cfg.get("parsing", {}).get("actions", [])) if cfg else []
+        ids = []
+        for action in actions:
+            if isinstance(action, dict) and action.get("id"):
+                ids.append(action["id"])
+        return ids
+
+    def _filter_identity_skills(self, agent_type: str, skills: List[str], state: Dict[str, Any]) -> List[str]:
+        base_type = self.config.get_base_type(agent_type) if hasattr(self.config, "get_base_type") else agent_type
+        blocked = set()
+        for rule in self.config.get_identity_rules(base_type):
+            pre = rule.metadata.get("precondition")
+            if pre and state.get(pre) is True:
+                for s in rule.blocked_skills or []:
+                    blocked.add(s)
+        return [s for s in skills if s not in blocked]
+
+    def _inject_filtered_skills(self, context: Dict[str, Any], agent_type: str) -> None:
+        base_type = self.config.get_base_type(agent_type) if hasattr(self.config, "get_base_type") else agent_type
+        if base_type == "household":
+            return
+        state = context.get("state", {})
+        action_ids = self._get_action_ids(agent_type)
+        if not action_ids:
+            return
+        filtered = self._filter_identity_skills(agent_type, action_ids, state)
+        context["available_skills"] = filtered
+        self._inject_options_text(context, filtered)
+
+    def _inject_options_text(self, context: Dict[str, Any], skills: List[str]) -> None:
+        if not skills:
+            return
+        options = []
+        dynamic_skill_map = {}
+        for i, skill_id in enumerate(skills, 1):
+            skill_def = self.skill_registry.get(skill_id) if self.skill_registry else None
+            desc = skill_def.description if skill_def else skill_id
+            options.append(f"{i}. {desc}")
+            dynamic_skill_map[str(i)] = skill_id
+        personal = context.setdefault("personal", {})
+        if len(skills) > 1:
+            valid_choices = ", ".join([str(i) for i in range(1, len(skills))]) + f", or {len(skills)}"
+        else:
+            valid_choices = "1"
+        personal["options_text"] = "\n".join(options)
+        personal["valid_choices_text"] = valid_choices
+        personal["dynamic_skill_map"] = dynamic_skill_map
+
     def _run_validators(self, proposal: SkillProposal, context: Dict) -> List[ValidationResult]:
         """Run all validators on the skill proposal."""
         results = []

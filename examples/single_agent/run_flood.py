@@ -9,14 +9,17 @@ from typing import Dict, List, Any, Optional
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
+# Add single_agent to path for local utilities
+sys.path.insert(0, str(Path(__file__).parent))
+
 from broker.core.experiment import ExperimentBuilder, ExperimentRunner
 from broker.components.social_graph import NeighborhoodGraph
 from broker.components.interaction_hub import InteractionHub
-from broker.components.context_builder import TieredContextBuilder
+from broker.components.context_builder import TieredContextBuilder, PrioritySchemaProvider
 from broker.components.skill_registry import SkillRegistry
 from broker.components.memory_engine import WindowMemoryEngine, ImportanceMemoryEngine, HumanCentricMemoryEngine
 from broker.interfaces.skill_types import ExecutionResult
-from plot_results import plot_adaptation_results
+from analysis.plot_results import plot_adaptation_results
 from broker.utils.llm_utils import create_legacy_invoke as create_llm_invoke
 from broker.utils.agent_config import GovernanceAuditor
 
@@ -32,10 +35,22 @@ PAST_EVENTS = [
     "News outlets have reported a possible trend of increasing flood frequency and severity in recent years"
 ]
 
+# Schema Definition for Group C (Pillar 3)
+FLOOD_PRIORITY_SCHEMA = {
+    "flood_depth": 1.0,      # Physical reality (Highest)
+    "flood_threshold": 0.9,  # Physical vulnerability
+    "savings": 0.8,          # Financial Reality
+    "income_level": 0.7,     # Socio-economic Constaint
+    "risk_tolerance": 0.5    # Psychological preference (Lower priority)
+}
+
 # --- 2. Custom Components for Perception Parity ---
 
 class FinalContextBuilder(TieredContextBuilder):
     """Subclass of TieredContextBuilder to verbalize floats and format memory into string."""
+    def __init__(self, *args, memory_top_k: int = 5, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.memory_top_k = memory_top_k
     
     def _verbalize_trust(self, trust_value: float, category: str = "insurance") -> str:
         if category == "insurance":
@@ -52,10 +67,10 @@ class FinalContextBuilder(TieredContextBuilder):
 
     def build(self, agent_id: str, **kwargs) -> Dict[str, Any]:
         # 1. Gather base context
-        # We manually retrieve more memories (top_k=3) for parity
+        # We manually retrieve more memories for parity with baseline
         agent = self.agents[agent_id]
         if hasattr(self.hub, 'memory_engine') and self.hub.memory_engine:
-            personal_memory = self.hub.memory_engine.retrieve(agent, top_k=5)
+            personal_memory = self.hub.memory_engine.retrieve(agent, top_k=self.memory_top_k)
         else:
             personal_memory = []
             
@@ -96,58 +111,41 @@ class FinalContextBuilder(TieredContextBuilder):
         elif isinstance(mem_val, list):
             personal['memory'] = "\n".join([f"- {m}" for m in mem_val])
         
-        # 5. Options Text Formatting (with Shuffling to reduce positional bias)
-        agent = self.agents[agent_id]
-        available = agent.get_available_skills()
+        # 5. Options Text Formatting (STRICT PARITY MODE)
+        # We override the dynamic registry lookup to match LLMABMPMT-Final.py exactly.
         
-        # Build option list with skill_id -> description mapping
-        option_items = []  # List of (skill_id, description)
-        for skill_item in available:
-            skill_id = skill_item.split(": ", 1)[0] if ": " in skill_item else skill_item
-            skill_def = self.skill_registry.get(skill_id) if self.skill_registry else None
-            desc = skill_def.description if skill_def else (skill_item.split(": ", 1)[1] if ": " in skill_item else skill_item)
-            option_items.append((skill_id, desc))
-        
-        # SHUFFLE options to reduce positional bias (changes per step/year for each agent)
-        # DISABLED FOR PARITY TEST with LLMABMPMT-Final.py
-        # step_id = kwargs.get('step_id', 0)
-        # agent_seed = hash(f"{agent_id}_{step_id}") % 10000
-        # rng = random.Random(agent_seed)
-        # rng.shuffle(option_items)
-
-        # ENFORCE FIXED ORDER for Parity:
-        # 1. buy_insurance
-        # 2. elevate_house
-        # 3. relocate
-        # 4. do_nothing
-        order_map = {
-            "buy_insurance": 0,
-            "elevate_house": 1,
-            "relocate": 2,
-            "do_nothing": 3
-        }
-        option_items.sort(key=lambda x: order_map.get(x[0], 99))
-        
-        # Build numbered options text and dynamic skill_map
-        options = []
-        dynamic_skill_map = {}  # Maps "1", "2", "3", "4" to shuffled skill IDs
-        for i, (skill_id, desc) in enumerate(option_items, 1):
-            options.append(f"{i}. {desc}")
-            dynamic_skill_map[str(i)] = skill_id
-        
-        # INJECT INTO PERSONAL to ensure template_vars flattening picks it up early
-        personal['options_text'] = "\n".join(options)
-        personal['skills'] = personal['options_text'] # Alias
-        
-        # Pass dynamic skill_map to context for parser to use
-        personal['dynamic_skill_map'] = dynamic_skill_map
-        
-        # Valid choices text (e.g., "1, 2, or 3")
-        if len(options) > 1:
-            choices = [str(x) for x in range(1, len(options) + 1)]
-            personal['valid_choices_text'] = f"{', '.join(choices[:-1])}, or {choices[-1]}"
+        dynamic_skill_map = {}
+        if elevated:
+             personal['options_text'] = (
+                 "1. Buy flood insurance (Lower cost, provides partial financial protection but does not reduce physical damage.)\n"
+                 "2. Relocate (Requires leaving your neighborhood but eliminates flood risk permanently.)\n"
+                 "3. Do nothing (Require no financial investment or effort this year, but it might leave you exposed to future flood damage.)"
+             )
+             personal['valid_choices_text'] = "1, 2, or 3"
+             # Map for parser: 1->buy, 2->relocate, 3->do_nothing
+             dynamic_skill_map = {
+                 "1": "buy_insurance",
+                 "2": "relocate", 
+                 "3": "do_nothing"
+             }
         else:
-            personal['valid_choices_text'] = "1"
+             personal['options_text'] = (
+                 "1. Buy flood insurance (Lower cost, provides partial financial protection but does not reduce physical damage.)\n"
+                 "2. Elevate your house (High upfront cost but can prevent most physical damage.)\n"
+                 "3. Relocate (Requires leaving your neighborhood but eliminates flood risk permanently.)\n"
+                 "4. Do nothing (Require no financial investment or effort this year, but it might leave you exposed to future flood damage.)"
+             )
+             personal['valid_choices_text'] = "1, 2, 3, or 4"
+             # Map for parser: 1->buy, 2->elevate, 3->relocate, 4->do_nothing
+             dynamic_skill_map = {
+                 "1": "buy_insurance",
+                 "2": "elevate_house",
+                 "3": "relocate",
+                 "4": "do_nothing"
+             }
+
+        personal['skills'] = personal['options_text'] # Alias for template compatibility
+        personal['dynamic_skill_map'] = dynamic_skill_map
         
         # 6. Set variant for adapter
         context["skill_variant"] = "elevated" if elevated else "non_elevated"
@@ -155,20 +153,56 @@ class FinalContextBuilder(TieredContextBuilder):
         return context
 
 
+# --- 2b. Parity Memory Filter ---
+class DecisionFilteredMemoryEngine:
+    """Proxy memory engine that drops decision memories to match baseline."""
+    def __init__(self, inner):
+        self.inner = inner
+
+    def add_memory(self, agent_id: str, content: str, metadata: Optional[Dict[str, Any]] = None):
+        if "Decided to:" in content:
+            return
+        return self.inner.add_memory(agent_id, content, metadata)
+
+    def add_memory_for_agent(self, agent, content: str, metadata: Optional[Dict[str, Any]] = None):
+        if "Decided to:" in content:
+            return
+        if hasattr(self.inner, 'add_memory_for_agent'):
+            return self.inner.add_memory_for_agent(agent, content, metadata)
+        return self.inner.add_memory(agent.id, content, metadata)
+
+    def retrieve(self, agent, query: Optional[str] = None, top_k: int = 3):
+        return self.inner.retrieve(agent, query=query, top_k=top_k)
+
+    def clear(self, agent_id: str):
+        return self.inner.clear(agent_id)
+
+
 
 
 # --- 3. Simulation Environment ---
 class ResearchSimulation:
-    def __init__(self, agents: Dict[str, Any], flood_years: List[int] = None):
+    def __init__(
+        self,
+        agents: Dict[str, Any],
+        flood_years: List[int] = None,
+        flood_mode: str = "fixed",
+        flood_probability: float = FLOOD_PROBABILITY
+    ):
         self.agents = agents
         self.flood_years = flood_years or []
+        self.flood_mode = flood_mode
+        self.flood_probability = flood_probability
         self.current_year = 0
         self.flood_event = False
         self.grant_available = False
 
     def advance_year(self):
         self.current_year += 1
-        self.flood_event = self.current_year in self.flood_years
+        if self.flood_mode == "prob":
+            self.flood_event = random.random() < self.flood_probability
+        else:
+            self.flood_event = self.current_year in self.flood_years
         self.grant_available = random.random() < GRANT_PROBABILITY
         return {"flood_event": self.flood_event, "grant_available": self.grant_available}
 
@@ -177,13 +211,13 @@ class ResearchSimulation:
         state_changes = {}
         if skill == "buy_insurance": 
             state_changes["has_insurance"] = True
-        elif skill == "elevate_house": 
-            state_changes["elevated"] = True
-            state_changes["has_insurance"] = False # Insurance expires
-        elif skill == "relocate": 
-            state_changes["relocated"] = True
-        else: # do_nothing
-            state_changes["has_insurance"] = False # Insurance expires
+        else:
+            # All other decisions (elevate, relocate, do_nothing) result in insurance expiration
+            state_changes["has_insurance"] = False
+            if skill == "elevate_house": 
+                state_changes["elevated"] = True
+            elif skill == "relocate": 
+                state_changes["relocated"] = True
         return ExecutionResult(success=True, state_changes=state_changes)
 
 def classify_adaptation_state(agent):
@@ -197,11 +231,13 @@ def classify_adaptation_state(agent):
 
 # --- 4. Parity Hook ---
 class FinalParityHook:
-    def __init__(self, sim: ResearchSimulation, runner: ExperimentRunner):
+    def __init__(self, sim: ResearchSimulation, runner: ExperimentRunner, reflection_engine=None):
         self.sim = sim
         self.runner = runner
+        self.reflection_engine = reflection_engine  # Pillar 2: Year-End Reflection
         self.logs = []
         self.prompt_inspected = False
+        self.yearly_decisions = {}
 
     def pre_year(self, year, env, agents):
         year = year
@@ -218,28 +254,49 @@ class FinalParityHook:
                 continue
             flooded = False
             if flood_event:
-                damage = 10000 * (0.1 if agent.elevated else 1.0)
-                if random.random() < agent.flood_threshold:
-                    flooded = True
-                    mem = f"Year {year}: Despite elevation, got flooded with ${damage:,.0f} damage." if agent.elevated else f"Year {year}: Got flooded with ${damage:,.0f} damage on my house."
-                else:
-                    mem = f"Year {year}: A flood occurred, but my house was protected by its elevation." if agent.elevated else f"Year {year}: A flood occurred, but my house was spared damage."
-            else: mem = f"Year {year}: No flood occurred this year."
+                if not agent.elevated:
+                    if random.random() < agent.flood_threshold:
+                        flooded = True
+                        mem = f"Year {year}: Got flooded with $10,000 damage on my house."
+                    else:
+                        mem = f"Year {year}: A flood occurred, but my house was spared damage."
+                else: # agent.elevated
+                    if random.random() < agent.flood_threshold:
+                        flooded = True
+                        mem = f"Year {year}: Despite elevation, the flood was severe enough to cause damage."
+                    else:
+                        mem = f"Year {year}: A flood occurred, but my house was protected by its elevation."
+            else:
+                mem = f"Year {year}: No flood occurred this year."
             agent.flood_history.append(flooded)
-            self.runner.memory_engine.add_memory(agent.id, mem)
+            yearly_memories = []
+            yearly_memories.append(mem)
             
-            # Social Observation Memory (Parity with run_experiment.py)
+            # Grant memory (baseline order)
+            if self.sim.grant_available:
+                yearly_memories.append(f"Year {year}: Elevation grants are available.")
+
+            # Social Observation Memory (baseline order)
             num_others = len(self.sim.agents) - 1
             if num_others > 0:
                 elev_pct = round(((total_elevated - (1 if agent.elevated else 0)) / num_others) * 100)
                 reloc_pct = round((total_relocated / num_others) * 100)
-                self.runner.memory_engine.add_memory(agent.id, f"Year {year}: I observe {elev_pct}% of my neighbors have elevated homes.")
-                self.runner.memory_engine.add_memory(agent.id, f"Year {year}: I observe {reloc_pct}% of my neighbors have relocated.")
+                yearly_memories.append(f"Year {year}: I observe {elev_pct}% of neighbors elevated and {reloc_pct}% relocated.")
 
-            if self.sim.grant_available: self.runner.memory_engine.add_memory(agent.id, f"Year {year}: Elevation grants are available.")
-            if random.random() < RANDOM_MEMORY_RECALL_CHANCE: self.runner.memory_engine.add_memory(agent.id, f"Suddenly recalled: '{random.choice(PAST_EVENTS)}'.")
+            # Stochastic recall (baseline order)
+            if random.random() < RANDOM_MEMORY_RECALL_CHANCE:
+                yearly_memories.append(f"Suddenly recalled: '{random.choice(PAST_EVENTS)}'.")
+            
+            # Consolidate and Add ONCE to preserve window history
+            consolidated_mem = " | ".join(yearly_memories)
+            self.runner.memory_engine.add_memory(agent.id, consolidated_mem)
 
     def post_step(self, agent, result):
+        year = self.sim.current_year
+        skill_name = None
+        if result and result.approved_skill:
+            skill_name = result.approved_skill.skill_name
+        self.yearly_decisions[(agent.id, year)] = skill_name
         if result.approved_skill and result.approved_skill.skill_name == "elevate_house":
             agent.flood_threshold = round(agent.flood_threshold * 0.2, 2)
             agent.flood_threshold = max(0.001, agent.flood_threshold)
@@ -263,21 +320,201 @@ class FinalParityHook:
                 else: trust_nb -= 0.01
                 agent.trust_in_neighbors = max(0.0, min(1.0, trust_nb))
 
+            # Retrieve memory for logging (Parity)
+            mem_items = self.runner.memory_engine.retrieve(agent, top_k=5)
+            # Memory engine returns list of strings. Join with | for CSV parity.
+            mem_str = " | ".join(mem_items)
+            
+            # Note: Reflection is now handled in BATCH mode after the agent loop.
+            # The old per-agent reflection code has been replaced for efficiency.
+
+            yearly_decision = self.yearly_decisions.get((agent.id, year))
+            if yearly_decision is None and getattr(agent, "relocated", False):
+                yearly_decision = "relocated"
+
             self.logs.append({
                 "agent_id": agent.id, "year": year, "cumulative_state": classify_adaptation_state(agent),
+                "yearly_decision": yearly_decision if yearly_decision else "N/A",
                 "elevated": getattr(agent, 'elevated', False), "has_insurance": getattr(agent, 'has_insurance', False),
                 "relocated": getattr(agent, 'relocated', False), "trust_insurance": getattr(agent, 'trust_in_insurance', 0),
-                "trust_neighbors": getattr(agent, 'trust_in_neighbors', 0)
+                "trust_neighbors": getattr(agent, 'trust_in_neighbors', 0),
+                "memory": mem_str
             })
 
         df_year = pd.DataFrame([l for l in self.logs if l['year'] == year])
         stats = df_year['cumulative_state'].value_counts()
         categories = ["Do Nothing", "Only Flood Insurance", "Only House Elevation", "Both Flood Insurance and House Elevation", "Relocate"]
         stats_str = " | ".join([f"{cat}: {stats.get(cat, 0)}" for cat in categories])
+        
+        # Calculate Trust Stats for Observability
+        avg_trust_ins = df_year['trust_insurance'].mean()
+        avg_trust_nb = df_year['trust_neighbors'].mean()
+        
         print(f"[Year {year}] Stats: {stats_str}")
+        print(f"[Year {year}] Avg Trust: Ins={avg_trust_ins:.3f}, Nb={avg_trust_nb:.3f}")
 
-# --- 5. Main Runner ---
-def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_count: int = 100, custom_output: str = None, verbose: bool = False, memory_engine_type: str = "window", workers: int = 1, window_size: int = 5):
+        # Intermediate Save for Validation (Run-specific to prevent collisions)
+        log_filename = f"interim_{getattr(self.runner.config, 'model', 'unknown').replace(':','_')}_{getattr(self.runner.config, 'governance_profile', 'default')}.csv"
+        pd.DataFrame(self.logs).to_csv(log_filename, index=False)
+        # pd.DataFrame(self.logs).to_csv("simulation_log_interim.csv", index=False) # Legacy shared file
+        
+        # --- PILLAR 2: BATCH YEAR-END REFLECTION ---
+        if self.reflection_engine and self.reflection_engine.should_reflect("any", year):
+            # Optimized: Pull batch_size from YAML (Pillar 2)
+            refl_cfg = self.runner.broker.config.get_reflection_config()
+            batch_size = refl_cfg.get("batch_size", 10)
+            
+            # 1. Collect all agents that need reflection this year
+            candidates = []
+            for agent_id, agent in self.sim.agents.items():
+                if getattr(agent, "relocated", False):
+                    continue  # Skip relocated agents
+                memories = self.runner.memory_engine.retrieve(agent, top_k=10)
+                if memories:
+                    candidates.append({"agent_id": agent_id, "memories": memories})
+            
+            if candidates:
+                print(f" [Reflection:Batch] Processing {len(candidates)} agents in batches of {batch_size}...")
+                llm_call = self.runner.get_llm_invoke("household")
+                
+                # 2. Process in batches
+                for i in range(0, len(candidates), batch_size):
+                    batch = candidates[i:i+batch_size]
+                    batch_ids = [c["agent_id"] for c in batch]
+                    prompt = self.reflection_engine.generate_batch_reflection_prompt(batch, year)
+                    
+                    try:
+                        raw_res = llm_call(prompt)
+                        response_text = raw_res[0] if isinstance(raw_res, tuple) else raw_res
+                        
+                        # 3. Parse and store insights
+                        insights = self.reflection_engine.parse_batch_reflection_response(response_text, batch_ids, year)
+                        for agent_id, insight in insights.items():
+                            if insight:
+                                self.reflection_engine.store_insight(agent_id, insight)
+                                # Feed insight back to Memory Engine
+                                self.runner.memory_engine.add_memory(
+                                    agent_id,
+                                    f"Consolidated Reflection: {insight.summary}",
+                                    {"significance": 0.9, "emotion": "major", "source": "personal"}
+                                )
+                    except Exception as e:
+                        print(f" [Reflection:Batch:Error] Batch {i//batch_size+1} failed: {e}")
+                
+                print(f" [Reflection:Batch] Completed reflection for Year {year}.")
+
+# --- 5. Survey-Based Agent Initialization ---
+def load_agents_from_survey(
+    survey_path: Path,
+    max_agents: int = 100,
+    seed: int = 42
+) -> Dict[str, Any]:
+    """
+    Load and initialize agents from real survey data.
+
+    Uses the survey module to:
+    1. Parse Excel survey data
+    2. Classify MG/NMG status
+    3. Assign flood zones based on experience
+    4. Generate RCV values
+
+    Returns dict of Agent objects compatible with the experiment runner.
+    """
+    from broker.modules.survey.agent_initializer import initialize_agents_from_survey
+    from agents.base_agent import BaseAgent, AgentConfig
+
+    profiles, stats = initialize_agents_from_survey(
+        survey_path=survey_path,
+        max_agents=max_agents,
+        seed=seed,
+        include_hazard=True,
+        include_rcv=True
+    )
+
+    print(f"[Survey] Loaded {stats['total_agents']} agents from survey")
+    print(f"[Survey] MG: {stats['mg_count']} ({stats['mg_ratio']:.1%}), NMG: {stats['nmg_count']}")
+    print(f"[Survey] Owners: {stats['owner_count']}, Renters: {stats['renter_count']}")
+    print(f"[Survey] With flood experience: {stats['flood_experience_count']}")
+
+    agents = {}
+    for profile in profiles:
+        # Map survey profile to agent attributes
+        config = AgentConfig(
+            name=profile.agent_id,
+            agent_type="household",
+            state_params=[],
+            objectives=[],
+            constraints=[],
+            skills=[],  # Skills are set via config.skills list below
+        )
+
+        # Calculate flood threshold from base depth
+        # Higher depth = higher flood probability threshold
+        base_threshold = 0.3 if profile.base_depth_m > 0 else 0.1
+        if profile.flood_zone in ("deep", "very_deep", "extreme"):
+            base_threshold = 0.5
+        elif profile.flood_zone == "moderate":
+            base_threshold = 0.4
+        elif profile.flood_zone == "shallow":
+            base_threshold = 0.3
+
+        agent = BaseAgent(config)
+        agent.id = profile.agent_id
+        agent.agent_type = "household"
+        # Set skills as string list for skill registry lookup
+        agent.config.skills = ["buy_insurance", "elevate_house", "relocate", "do_nothing"]
+
+        # Set custom attributes from survey profile
+        agent.custom_attributes = {
+            # Core state
+            "elevated": False,
+            "has_insurance": False,
+            "relocated": False,
+
+            # Trust values (can be adjusted based on survey responses)
+            "trust_in_insurance": 0.5,
+            "trust_in_neighbors": 0.5,
+
+            # Flood exposure
+            "flood_threshold": base_threshold,
+
+            # Survey-derived attributes
+            "identity": profile.identity,  # "owner" or "renter"
+            "is_mg": profile.is_mg,
+            "group": profile.group_label,  # "MG" or "NMG"
+            "family_size": profile.family_size,
+            "income_bracket": profile.income_bracket,
+            "income_midpoint": profile.income_midpoint,
+            "flood_zone": profile.flood_zone,
+            "base_depth_m": profile.base_depth_m,
+            "flood_probability": profile.flood_probability,
+            "building_rcv_usd": profile.building_rcv_usd,
+            "contents_rcv_usd": profile.contents_rcv_usd,
+            "has_children": profile.has_children,
+            "has_elderly": profile.has_elderly,
+            "prior_flood_experience": profile.flood_experience,
+            "prior_financial_loss": profile.financial_loss,
+
+            # Narrative for LLM context
+            "narrative_persona": profile.generate_narrative_persona(),
+            "flood_experience_summary": profile.generate_flood_experience_summary(),
+
+            # Empty memory to be populated during simulation
+            "memory": "",
+        }
+
+        # Copy custom attributes to agent object
+        for k, v in agent.custom_attributes.items():
+            setattr(agent, k, v)
+
+        agent.flood_history = []
+        agents[agent.id] = agent
+
+    return agents
+
+
+# --- 6. Main Runner ---
+def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_count: int = 100, custom_output: str = None, verbose: bool = False, memory_engine_type: str = "window", workers: int = 1, window_size: int = 5, seed: Optional[int] = None, flood_mode: str = "fixed", survey_mode: bool = False, governance_mode: str = "strict", use_priority_schema: bool = False, stress_test: str = None):
     print(f"--- Llama {agents_count}-Agent {years}-Year Benchmark (Final Parity Edition) ---")
     
     # 1. Load Registry & Prompt Template
@@ -291,27 +528,75 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
         agent_cfg_data = yaml.safe_load(f)
         household_template = agent_cfg_data.get('household', {}).get('prompt_template', '')
 
-    # 2. Load Profiles
-    from broker import load_agents_from_csv
-    profiles_path = base_path / "agent_initial_profiles.csv"
-    agents = load_agents_from_csv(str(profiles_path), {
-        "id": "id", "elevated": "elevated", "has_insurance": "has_insurance", 
-        "relocated": "relocated", "trust_in_insurance": "trust_in_insurance", 
-        "trust_in_neighbors": "trust_in_neighbors", "flood_threshold": "flood_threshold",
-        "memory": "memory"
-    })
+    # 2. Load Profiles (Survey Mode or CSV Mode)
     import re
     def natural_key(string_):
         """Helper for natural sorting (Agent_1, Agent_2, Agent_10...)"""
         return [int(s) if s.isdigit() else s for s in re.split(r'(\d+)', string_)]
 
-    agents = {aid: agents[aid] for aid in sorted(agents.keys(), key=natural_key)[:agents_count]}
-    for a in agents.values(): 
-        a.flood_history = []
-        a.agent_type = "household"
-        # Synchronize Registry IDs - Include full global suite for disclosure parity
-        a.config.skills = ["buy_insurance", "elevate_house", "relocate", "do_nothing"]
-        for k, v in a.custom_attributes.items(): setattr(a, k, v)
+    if survey_mode:
+        # Survey-based initialization from real household data
+        survey_path = base_path.parent / "multi_agent" / "input" / "initial_household data.xlsx"
+        if not survey_path.exists():
+            raise FileNotFoundError(
+                f"Survey file not found: {survey_path}\n"
+                "Survey mode requires 'initial_household data.xlsx' in examples/multi_agent/input/"
+            )
+        agents = load_agents_from_survey(survey_path, max_agents=agents_count, seed=seed or 42)
+        print(f"[Survey Mode] Initialized {len(agents)} agents from real survey data")
+    else:
+        # Legacy CSV-based initialization
+        from broker import load_agents_from_csv
+        profiles_path = base_path / "agent_initial_profiles.csv"
+        agents = load_agents_from_csv(str(profiles_path), {
+            "id": "id", "elevated": "elevated", "has_insurance": "has_insurance",
+            "relocated": "relocated", "trust_in_insurance": "trust_in_insurance",
+            "trust_in_neighbors": "trust_in_neighbors", "flood_threshold": "flood_threshold",
+            "memory": "memory"
+        }, agent_type="household")
+
+        agents = {aid: agents[aid] for aid in sorted(agents.keys(), key=natural_key)[:agents_count]}
+        for a in agents.values():
+            a.flood_history = []
+            a.agent_type = "household"
+            # Synchronize Registry IDs - Include full global suite for disclosure parity
+            a.config.skills = ["buy_insurance", "elevate_house", "relocate", "do_nothing"]
+            for k, v in a.custom_attributes.items(): setattr(a, k, v)
+
+        if stress_test == "veteran":
+            print("[StressTest] ST-2: Overriding Agent_1 as 'The Optimistic Veteran'...")
+            veteran_id = list(agents.keys())[0]
+            v = agents[veteran_id]
+            v.trust_in_insurance = 0.9; v.trust_in_neighbors = 0.1; v.income_midpoint = 100000
+            v.prior_flood_experience = True; v.flood_threshold = 0.8
+            v.narrative_persona = "You are a wealthy homeowner who has lived in this house for 30 years. You have survived many moderate floods without taking action and believe your house is uniquely safe due to its foundation."
+            agents = { veteran_id: v }; agents_count = 1
+
+        elif stress_test == "panic":
+            print("[StressTest] ST-1: Overriding Agent_1 as 'The Panic Machine'...")
+            panic_id = list(agents.keys())[0]
+            p = agents[panic_id]
+            p.income_midpoint = 15000; p.trust_in_neighbors = 0.9  # Low income, high social influence
+            p.flood_threshold = 0.1 # Extremely low threshold (panics at 10cm water)
+            p.narrative_persona = "You are a highly anxious renter with limited savings. You are terrified of any water entry and will try to relocate at the smallest sign of flooding, even if the neighborhood is safe."
+            agents = { panic_id: p }; agents_count = 1
+
+        elif stress_test == "goldfish":
+            print("[StressTest] ST-3: Overriding Agent_1 to test 'Memory Goldfish' (Window vs HumanCentric)...")
+            g_id = list(agents.keys())[0]
+            g = agents[g_id]
+            g.narrative_persona = "You are an average resident. In your perspective, ONLY events mentioned in your provided memory context exist. If it's not in the memory, it never happened."
+            # Set window_size=2 for this run to see if they forget a catastrophic year-1 flood by year-5
+            window_size = 2
+            agents = { g_id: g }; agents_count = 1
+
+        elif stress_test == "format":
+            print("[StressTest] ST-4: Overriding Agent_1 to test 'Format Breaker'...")
+            f_id = list(agents.keys())[0]
+            f = agents[f_id]
+            # Use a slightly 'broken' persona to confuse small models
+            f.narrative_persona = "You must output your decision but include additional internal monologue outside the JSON, such as: 'Decision: I will buy insurance because...' followed by the JSON block. Do NOT follow strict JSON rules."
+            agents = { f_id: f }; agents_count = 1
 
     # 3. Load Flood Years
     df_years = pd.read_csv(base_path / "flood_years.csv")
@@ -319,7 +604,7 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
     print(f" Flood Years scheduled: {flood_years}")
 
     # 4. Setup Components
-    sim = ResearchSimulation(agents, flood_years)
+    sim = ResearchSimulation(agents, flood_years, flood_mode=flood_mode)
     graph = NeighborhoodGraph(list(agents.keys()), k=4)
     hub = InteractionHub(graph)
     ctx_builder = FinalContextBuilder(
@@ -327,8 +612,16 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
         hub=hub, 
         skill_registry=registry,
         prompt_templates={"household": household_template, "default": household_template},
-        yaml_path=str(agent_config_path)
+        yaml_path=str(agent_config_path),
+        memory_top_k=window_size
     )
+
+    # Inject PrioritySchemaProvider if enabled (Separation for Group C)
+    if use_priority_schema:
+        print("[Experimental] Injecting PrioritySchemaProvider (Pillar 3)")
+        # Insert at index 1 (after Dynamic, before Attribute) to prioritize in context filtering if needed
+        schema_provider = PrioritySchemaProvider(FLOOD_PRIORITY_SCHEMA)
+        ctx_builder.providers.insert(1, schema_provider)
 
     # Select memory engine based on CLI argument
     if memory_engine_type == "importance":
@@ -345,11 +638,15 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
         )
         print(f" Using ImportanceMemoryEngine (active retrieval with flood-specific keywords)")
     elif memory_engine_type == "humancentric":
+        # Load memory config from YAML (universality proof)
+        mem_cfg = agent_cfg_data.get('shared', {}).get('memory_config', {})
         memory_engine = HumanCentricMemoryEngine(
             window_size=window_size,
             top_k_significant=2,
             consolidation_prob=0.7,
             decay_rate=0.1,
+            emotional_weights=mem_cfg.get("emotional_weights"),
+            source_weights=mem_cfg.get("source_weights"),
             seed=42  # For reproducibility
         )
         print(f" Using HumanCentricMemoryEngine (emotional encoding + stochastic consolidation, window={window_size})")
@@ -360,17 +657,36 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
     else:
         memory_engine = WindowMemoryEngine(window_size=window_size)
         print(f" Using WindowMemoryEngine (sliding window, size={window_size})")
+
+    # Filter decision memories for parity with baseline
+    memory_engine = DecisionFilteredMemoryEngine(memory_engine)
     
-    # 5. Determine isolated output directory (Priority for parallel)
+    # 5. Determine output directory
     if custom_output:
-        output_path = Path(custom_output)
-        if not output_path.is_absolute():
-            output_path = Path.cwd() / output_path
-        model_folder = f"{model.replace(':','_').replace('-','_').replace('.','_')}_strict"
-        output_dir = output_path / model_folder
+        output_base = Path(custom_output)
+        if not output_base.is_absolute():
+            output_base = Path.cwd() / output_base
+        
+        # Phase 40: Allow complete override if path already contains 'results' and subfolders
+        if "JOH" in str(output_base) and (output_base / "raw").exists() or "baseline" in str(output_base).lower() or "full" in str(output_base).lower():
+             output_dir = output_base
+        else:
+             model_folder = f"{model.replace(':','_').replace('-','_').replace('.','_')}_{governance_mode}"
+             output_dir = output_base / model_folder
     else:
-        output_dir = Path(__file__).parent / "results" / f"{model.replace(':','_')}_strict"
+        output_base = Path(__file__).parent / "results"
+        model_folder = f"{model.replace(':','_').replace('-','_').replace('.','_')}_{governance_mode}"
+        output_dir = output_base / model_folder
+    
     output_dir.mkdir(parents=True, exist_ok=True)
+
+    # --- CLEANUP TRACES (Crucial for Analysis) ---
+    raw_dir = output_dir / "raw"
+    traces_file = raw_dir / "household_traces.jsonl"
+    if traces_file.exists():
+        print(f"Cleaning up old traces: {traces_file}")
+        try: traces_file.unlink()
+        except: pass
 
     # 6. Setup ExperimentBuilder and Runner
     from broker import ExperimentBuilder
@@ -384,15 +700,32 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
         .with_context_builder(ctx_builder)
         .with_skill_registry(registry)
         .with_memory_engine(memory_engine)
-        .with_governance("strict", agent_config_path)
-        .with_output(str(output_dir))
+        .with_governance(governance_mode, agent_config_path)
+        .with_output(str(output_base))
         .with_workers(workers)
+        .with_seed(seed)
     )
     
     runner = builder.build()
     
+    # Pillar 2: Instantiate ReflectionEngine for HumanCentric memory
+    reflection_engine = None
+    if memory_engine_type == "humancentric":
+        from broker.components.reflection_engine import ReflectionEngine
+        # Load configurable weights/intervals from YAML (Pillar 2)
+        refl_cfg = agent_cfg_data.get('shared', {}).get('reflection_config', {})
+        reflection_engine = ReflectionEngine(
+            reflection_interval=refl_cfg.get("interval", 1),
+            max_insights_per_reflection=2,
+            insight_importance_boost=refl_cfg.get("importance_boost", 0.9)
+        )
+        print(f" [Pillar 2] ReflectionEngine enabled (Interval: {reflection_engine.reflection_interval}, Boost: {reflection_engine.importance_boost})")
+        
+        # Connect to batch_size in runner config if needed
+        # Note: batch_size is handled in post_year hook of FinalParityHook
+    
     # Inject Parity Hooks manually after build
-    parity = FinalParityHook(sim, runner)
+    parity = FinalParityHook(sim, runner, reflection_engine=reflection_engine)
     runner.hooks = {
         "pre_year": parity.pre_year, 
         "post_step": parity.post_step, 
@@ -430,21 +763,12 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
                         "year": year,
                         "decision": "Relocate",
                         "cumulative_state": "Relocate",
+                        "yearly_decision": "relocated", # Consistent filler
                         "elevated": True,
                         "has_insurance": False,
                         "relocated": True
                     })
 
-    if custom_output:
-        # If absolute, use as is; if relative, make it relative to CWD
-        output_path = Path(custom_output)
-        if not output_path.is_absolute():
-            output_path = Path.cwd() / output_path
-        output_dir = output_path / f"{model.replace(':','_').replace('.','_')}_strict"
-    else:
-        # Default to examples/single_agent/results
-        base_dir = Path(__file__).parent / "results"
-        output_dir = base_dir / f"{model.replace(':','_')}_strict"
     
     output_dir.mkdir(parents=True, exist_ok=True)
     csv_path = output_dir / "simulation_log.csv"
@@ -466,18 +790,53 @@ if __name__ == "__main__":
     parser.add_argument("--agents", type=int, default=100)
     parser.add_argument("--output", type=str, default=None)
     parser.add_argument("--verbose", action="store_true", help="Enable verbose LLM logging")
-    parser.add_argument("--memory-engine", type=str, default="window", 
-                        choices=["window", "importance", "humancentric", "hierarchical"], 
+    parser.add_argument("--memory-engine", type=str, default="window",
+                        choices=["window", "importance", "humancentric", "hierarchical"],
                         help="Memory retrieval strategy: window (sliding), importance (active retrieval), humancentric (emotional), or hierarchical (tiered)")
     parser.add_argument("--workers", type=int, default=1, help="Number of parallel workers for LLM calls")
     parser.add_argument("--window-size", type=int, default=5, help="Size of memory window (years/events) to retain")
+    parser.add_argument("--flood-mode", type=str, default="fixed", choices=["fixed", "prob"], help="Flood schedule: fixed (use flood_years.csv) or prob (use FLOOD_PROBABILITY)")
+    parser.add_argument("--seed", type=int, default=None, help="Random seed for reproducibility. If None, uses system time.")
+    parser.add_argument("--governance-mode", type=str, default="strict", choices=["strict", "relaxed", "disabled"], help="Governance strictness profile")
+    # LLM sampling parameters (None = use Ollama default)
+    parser.add_argument("--temperature", type=float, default=None, help="LLM temperature (e.g., 0.8, 1.0). None=Ollama default")
+    parser.add_argument("--top-p", type=float, default=None, help="Top-p sampling (e.g., 0.9, 0.95). None=Ollama default")
+    parser.add_argument("--top-k", type=int, default=None, help="Top-k sampling (e.g., 40, 50). None=Ollama default")
+    parser.add_argument("--use-chat-api", action="store_true", help="Use ChatOllama instead of OllamaLLM")
+    parser.add_argument("--survey-mode", action="store_true",
+                        help="Initialize agents from real survey data instead of CSV profiles. "
+                             "Uses MG/NMG classification, flood zone assignment, and RCV generation.")
+    parser.add_argument("--use-priority-schema", action="store_true", help="Enable Pillar 3: Priority Schema (Group C)")
+    parser.add_argument("--stress-test", type=str, default=None, choices=["veteran"], help="Run specific Stress Test scenarios (e.g., 'veteran')")
     args = parser.parse_args()
+
+    # Apply LLM config from command line
+    from broker.utils.llm_utils import LLM_CONFIG
+    if args.temperature is not None:
+        LLM_CONFIG.temperature = args.temperature
+    if args.top_p is not None:
+        LLM_CONFIG.top_p = args.top_p
+    if args.top_k is not None:
+        LLM_CONFIG.top_k = args.top_k
+    if args.use_chat_api:
+        LLM_CONFIG.use_chat_api = True
+    
+    # Generate random seed if not specified
+    actual_seed = args.seed if args.seed is not None else random.randint(0, 1000000)
+    random.seed(actual_seed)
+    
     run_parity_benchmark(
-        model=args.model, 
-        years=args.years, 
-        agents_count=args.agents, 
+        model=args.model,
+        years=args.years,
+        agents_count=args.agents,
         custom_output=args.output,
         verbose=args.verbose,
         memory_engine_type=args.memory_engine,
-        window_size=args.window_size
+        window_size=args.window_size,
+        seed=actual_seed,
+        flood_mode=args.flood_mode,
+        survey_mode=args.survey_mode,
+        governance_mode=args.governance_mode,
+        use_priority_schema=args.use_priority_schema,
+        stress_test=args.stress_test
     )

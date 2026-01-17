@@ -15,6 +15,7 @@ class AuditConfig:
     output_dir: str
     experiment_name: str = "simulation"
     log_level: str = "full"  # full, summary, errors_only
+    clear_existing_traces: bool = True
 
 
 class GenericAuditWriter:
@@ -29,6 +30,15 @@ class GenericAuditWriter:
         self.config = config
         self.output_dir = Path(config.output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
+
+        if config.clear_existing_traces:
+            raw_dir = self.output_dir / "raw"
+            if raw_dir.exists():
+                for trace_file in raw_dir.glob("*_traces.jsonl"):
+                    try:
+                        trace_file.unlink()
+                    except OSError as e:
+                        logger.warning(f"[Audit] Could not clear trace file {trace_file}: {e}")
         
         # Track file handles per agent type
         self._files: Dict[str, Path] = {}
@@ -150,9 +160,10 @@ class GenericAuditWriter:
             # 1. Base identity and timing
             row = {
                 "step_id": t.get("step_id"),
+                "year": t.get("year"),
                 "timestamp": t.get("timestamp"),
                 "agent_id": t.get("agent_id"),
-                "status": t.get("approved_skill", {}).get("status", "UNKNOWN"),
+                "status": (t.get("approved_skill") or {}).get("status", "UNKNOWN"),
                 "retry_count": t.get("retry_count", 0),
                 "validated": t.get("validated", True),
             }
@@ -162,11 +173,12 @@ class GenericAuditWriter:
             row["llm_success"] = t.get("llm_success", True)
             
             # 2. Skill Logic (Proposed vs Approved)
-            skill_prop = t.get("skill_proposal", {})
+            skill_prop = t.get("skill_proposal") or {}
+            appr_skill = t.get("approved_skill") or {}
             row["proposed_skill"] = skill_prop.get("skill_name")
-            row["final_skill"] = t.get("approved_skill", {}).get("skill_name")
-            row["parsing_warnings"] = "|".join(skill_prop.get("parsing_warnings", []))
-            row["raw_output"] = skill_prop.get("raw_output", "")
+            row["final_skill"] = appr_skill.get("skill_name")
+            row["parsing_warnings"] = "|".join(skill_prop.get("parsing_warnings", []) or [])
+            row["raw_output"] = skill_prop.get("raw_output", t.get("raw_output", ""))
             
             # 3. Reasoning (TP/CP Appraisal + Audits)
             reasoning = skill_prop.get("reasoning", {})
@@ -195,7 +207,7 @@ class GenericAuditWriter:
         if not flat_rows: return
 
         # Ensure consistent column ordering for user
-        priority_keys = ["step_id", "agent_id", "proposed_skill", "final_skill", "status", "retry_count", "validated", "failed_rules"]
+        priority_keys = ["step_id", "year", "agent_id", "proposed_skill", "final_skill", "status", "retry_count", "validated", "failed_rules"]
         
         # Phase 12: Support custom priority keys from first trace if present
         if traces and "_audit_priority" in traces[0]:

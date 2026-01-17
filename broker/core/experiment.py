@@ -279,10 +279,16 @@ class ExperimentBuilder:
         self.verbose = False
         self.hooks = {}
         self.workers = 1  # PR: Multiprocessing Core - default to sequential
+        self.seed = 42    # Default seed for reproducibility
 
     def with_workers(self, workers: int = 4):
         """Set number of parallel workers for LLM calls. 1=sequential (default)."""
         self.workers = workers
+        return self
+
+    def with_seed(self, seed: Optional[int]):
+        """Set custom random seed (None = system time)."""
+        self.seed = seed
         return self
 
     def with_model(self, model: str):
@@ -346,8 +352,18 @@ class ExperimentBuilder:
         self.agents = agents
         return self
 
-    def with_csv_agents(self, path: str, mapping: Dict[str, str], agent_type: str = "household"):
-        """Load agents from a CSV file using column mapping."""
+    def with_csv_agents(self, path: str, mapping: Dict[str, str], agent_type: str = None):
+        """
+        Load agents from a CSV file using column mapping.
+
+        Args:
+            path: Path to the CSV file
+            mapping: Column name mapping (e.g., {"id": "agent_id", "income": "income_level"})
+            agent_type: Agent type name from config (e.g., "household", "trader").
+                        Required - must match a type defined in agent_types.yaml.
+        """
+        if agent_type is None:
+            raise ValueError("agent_type is required. Specify the agent type from your config (e.g., 'household').")
         from broker import load_agents_from_csv
         self.agents = load_agents_from_csv(path, mapping, agent_type)
         return self
@@ -412,9 +428,14 @@ class ExperimentBuilder:
         if isinstance(ctx_builder, TieredContextBuilder):
             ctx_builder.skill_registry = reg
         
-        # 4. Setup Audit
+        # 4. Setup Output Directory
+        # Resolve final model-specific sub-directory here so it's consistent across all components
+        model_subfolder = f"{self.model.replace(':','_').replace('-','_').replace('.','_')}_{self.profile}"
+        final_output_path = self.output_base / model_subfolder
+        final_output_path.mkdir(parents=True, exist_ok=True)
+
         audit_cfg = AuditConfig(
-            output_dir=str(self.output_base / f"{self.model.replace(':','_').replace('-','_').replace('.','_')}_{self.profile}"),
+            output_dir=str(final_output_path),
             experiment_name=self.model
         )
         audit_writer = GenericAuditWriter(audit_cfg)
@@ -480,7 +501,8 @@ class ExperimentBuilder:
             num_years=self.num_years,
             num_steps=self.num_steps,
             governance_profile=self.profile,
-            output_dir=self.output_base,
+            output_dir=final_output_path,  # Use the same unified path
+            seed=self.seed,
             verbose=self.verbose,
             workers=self.workers  # PR: Multiprocessing Core
         )

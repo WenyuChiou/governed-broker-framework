@@ -62,11 +62,37 @@ The framework utilizes a layered middleware approach that unifies single-agent i
 - **v1 (Legacy)**: Monolithic scripts.
 - **v2 (Stable)**: Modular `SkillBrokerEngine` + `providers`.
 - **v3 (Latest)**: Unified Single/Multi-Agent Architecture + Professional Audit Trail.
+- **v3.3 (JOH Edition)**: **Cognitive Middleware Implementation**.
+  - **Coupling Interface**: Decoupled Input (JSON Signals) and Output (Action JSONs) for integration with HEC-RAS/SWMM.
+  - **Human-Centric Memory**: Emotional encoding and stochastic consolidation.
+  - **Explainable Governance**: Self-correction traces for transparent rationality.
 - **v3.1**: **Demographic Grounding & Statistical Validation**. Agents are grounded in real-world surveys.
 - **v3.2**: **Advanced Memory & Skill Retrieval**. Implements MemGPT-style Tiered Memory and RAG-based Skill Selection.
 - **v3.3 (Production)**: **Domain-Agnostic Parsing & Human-Centric Memory**.
   - All domain-specific logic moved to `agent_types.yaml`.
   - **Human-Centric Memory Engine**: Implements emotional encoding and passive retrieval.
+
+---
+
+## 🧠 Cognitive Architecture & Design Philosophy
+
+The **Context Builder** is not just a data pipe; it is a designed **Cognitive Lens** that structures reality to mitigate LLM hallucinations and cognitive biases.
+
+### 1. Structural Bias Mitigation
+
+We explicitly engineer the prompt context to counteract known LLM limitations:
+
+- **Scale Anchoring (The "Floating M" Problem)**: Small models (3B) lose track of symbol definitions in long contexts.
+  - **Design**: We use **Inline Semantic Anchoring** (e.g., `TP=M(Medium)` instead of just `TP=M`) to enforce immediate understanding.
+- **Option Primacy Bias**: LLMs statistically prefer the first option in a list.
+  - **Design**: The `ContextBuilder` implements **Dynamic Option Shuffling**, ensuring that "Do Nothing" or "Buy Insurance" do not benefit from positional advantage.
+- **The "Goldfish Effect" (Recency Bias)**: Models forget early instructions when overloaded with news.
+  - **Design**: We use a **Tiered Context Hierarchy** (`Personal State -> Local Observation -> Global Memory`). This places survival-critical data (State) closest to the decision block, while compressing distant memories.
+
+### 2. The Logic-Action Validator
+
+- **Challenge**: Agents often hallucinate a reasoning path ("I feel unsafe") but fail to select the corresponding action ("Relocate").
+- **Design**: The **Thinking Validator** component (in `Skill Broker`) performs a logical consistency check between `Threat Appraisal` and `Action Choice` before execution, triggering a retry if a mismatch is found.
 
 ---
 
@@ -81,21 +107,63 @@ Developing LLM-based agents within a governed framework revealed several recurri
 
 - **Example**: In our latest `UnifiedAdapter`, we sequence: **Enclosure Extraction** -> **JSON Repair** (for missing quotes/commas) -> **Keyword Regex** -> **Last-Resort Digit Extraction**.
 
-### 2. The Logic-Action Gap
+### 2. The Logic-Action Validator & Explainable Feedback Loop
 
-**Challenge**: Agents often distinguish "Feeling Safe" (Reasoning) from "Relocating" (Action).
-**Solution**: **Thinking Validators** in the `SkillBrokerEngine`. When a gap is detected, the broker triggers an immediate **Retry Prompt** with explicit logical feedback.
+- **Challenge**: The "Logic-Action Gap." Small LLMs often output a reasoning string that classifies a threat as "Very High" (VH) but then select a "Do Nothing" action due to syntax confusion or reward bias.
+- **Solution**: The **SkillBrokerEngine** implements a **Recursive Feedback Loop**.
+  1. **Detection**: Validators scan the parsed response. If `TP=VH` but `Action=Buy Insurance` (which cost-effectively addresses risks) is ignored for `Do Nothing`, an `InterventionReport` is generated.
+  2. **Injection**: Instead of a generic "Parse Error," the framework extracts the specific violation (e.g., _"Mismatch: High appraisal but passive action"_) and injects it into a **Retry Prompt**.
+  3. **Instruction**: The LLM is told: _"Your previous response was rejected due to logical inconsistency. Here is why: [Violation]. Please reconsider your action based on your appraisal."_
+  4. **Trace**: This entire "Argument" between the Broker and the LLM is captured in the `AuditWriter` for full transparency.
 
-### 3. Identity Drift
+---
 
-**Challenge**: In later years (Year 7+), agents may forget their role (e.g., Renter attempting to Elevate).
-**Solution**: **Identity Guardrails** at the Governance Layer block invalid skills based on the immutable Agent Profile.
+## 🧠 Memory Evolution: From Window to Tiered (v4 Roadmap)
+
+The framework is transitioning from a simple sliding window memory to a **Tiered Cognitive Architecture**, solving the context-overload problem while maintaining historical grounding.
+
+### Tier 1: Working Memory (Sliding Window)
+
+- **Scope**: Last 5 years of detailed events.
+- **Function**: Provides immediate context for the current decision step.
+- **Cleanup**: Low-importance events are purged to maintain LLM token efficiency.
+
+### Tier 2: Episodic Summary (Human-Centric Search)
+
+- **Scope**: Historical traumatic events (e.g., "The great flood of Year 2").
+- **Function**: Uses **Stochastic Retrieval**. Memories are scored by `Importance = (Emotion x Source) x Decay`. High-emotion memories bypass the window limit and are "pushed" into the prompt even 10 years later.
+
+### Tier 3: Semantic Insights (The Reflection Engine) - [LATEST v3.3]
+
+- **Scope**: Consolidated life lessons.
+- **Function**: At Year-End, the **Reflection Engine** triggers a "System 2" thinking process. It asks the LLM to summarize the year's events into a single **Insight** (e.g., _"Insurance is my only buffer against financial ruin"_).
+- **Consolidation**: These insights are stored as high-priority semantic memories, ensuring the agent's "Personality" evolves based on past successes or failures.
+
+---
+
+---
+
+## 🧪 Experimental Configurations (Baseline vs. Full)
+
+In our validation workflows (e.g., the JOH Paper), we define two core configurations to test the universal modules:
+
+1. **Baseline**:
+
+   - **Memory**: Simple `WindowMemoryEngine` (sliding window).
+   - **Governance**: Basic Syntax Validation.
+   - **Purpose**: Establishes a control group to measure behavioral drift without cognitive assistance.
+
+2. **Full**:
+   - **Memory**: **Human-Centric Memory** (including Reflection Engine).
+   - **Governance**: **Logic-Action Validator** (recursive retry mechanism).
+   - **Perception**: **Pillar 3 (Priority Schema)** attribute weighting.
+   - **Purpose**: Full demonstration of the 3-Pillar architecture's ability to solve LLM hallucination and bias.
 
 ---
 
 ## 🔧 Domain-Neutral Configuration (v3.3)
 
-All domain-specific logic is now centralized in `agent_types.yaml`. The framework is agnostic to the simulation domain.
+All domain-specific logic is centralized in `agent_types.yaml`. The framework is agnostic to the simulation domain.
 
 ```yaml
 # agent_types.yaml - Parsing & Memory Configuration
@@ -149,45 +217,6 @@ Not everything is remembered. The engine uses **Probabilistic Storage**:
 
 ---
 
-## 🔬 Scientific Research Questions (SQs)
-
-### SQ1: Cognitive vs. Stochastic Adaptation
-
-**Question**: How does LLM-driven reasoning-based adaptation compare to probability-based adaptation?
-**Goal**: Evaluate if reasoning-based models better capture "lock-in" effects.
-
-### SQ2: Social Network Influence
-
-**Question**: How do social network effects (gossip) accelerate or dampen adaptation?
-**Goal**: Understand how social capital (SC) modulates adaptation for different demographics.
-
-### SQ3: Institutional Feedback
-
-**Question**: How do institutional feedback loops (FEMA solvency, subsidies) interact with community resilience?
-**Goal**: Map policy sensitivity.
-
----
-
-## 📊 Scientific & Statistical Validation
-
-### 1. Chi-square Decision Analysis
-
-We use **Chi-square tests** to prove that governance and memory mechanisms create statistically significant behavioral changes ($p < 0.05$).
-
-### 2. Demographic Grounding Audit
-
-Scores whether the LLM **actually uses** survey context (Identity, Experience) in its reasoning (0.0 - 1.0 scale).
-
-### 3. How to Run Memory Benchmark
-
-To reproduce the 3x4 comparison charts (Baseline vs. Window vs. Human-Centric) across all models:
-
-```bash
-python examples/single_agent/analyze_old_vs_memory.py
-```
-
-_Output: Generates `README_EN.md`, `README_CH.md`, and statistical plots in `examples/single_agent/benchmark_analysis/`._
-
 ---
 
 ## ✅ Validated Models (v3.3)
@@ -203,8 +232,6 @@ The framework is strictly validated against the following model families to ensu
 
 ---
 
-## 🏗️ Technical Architecture Details
-
 ### 1. State Layer: Multi-Level Ownership
 
 - **Individual**: Private (`memory`, `elevated`, `insurance`).
@@ -217,9 +244,46 @@ The framework is strictly validated against the following model families to ensu
 - **Salience Filtering**: Retrieves top-k relevant memories via Memory Engine.
 - **Demographic Anchoring**: Injects fixed traits (Income, Generation).
 
-### 3. Simulation Engine: Sequential World Evolution
+---
 
-- **Sandboxed Execution**: Agents propose skills; Engine executes them.
+---
+
+## 🎨 Generalization & Domain Adaptation
+
+The framework's power lies in its **Universal Modules**. While currently validated for socio-hydrology, it can be adapted to any disaster or socio-economic domain by simply modifying the `agent_types.yaml` and `SkillRegistry`.
+
+### 1. Adaptation Guide: Categorizing "Signals"
+
+To adapt the `HumanCentricMemoryEngine` to a new domain, categorize your event signals into the following psychological bins:
+
+| Memory Category            | Target Domain: **Wildfire**                 | Target Domain: **Public Health**    |
+| :------------------------- | :------------------------------------------ | :---------------------------------- |
+| **`direct_impact`**        | "Property scorched", "Mandatory evacuation" | "Severe illness", "Hospitalization" |
+| **`strategic_choice`**     | "Cleared brush", "Fireproofed roof"         | "Vaccinated", "Self-isolated"       |
+| **`efficacy_gain`**        | "Home survived fire", "Insurance payout"    | "Tested negative", "Fast recovery"  |
+| **`social_feedback`**      | "Neighbors fled", "Lookout tower alert"     | "Masking compliance in store"       |
+| **`baseline_observation`** | "Normal wind", "Smokey horizon"             | "Daily case count update"           |
+
+### 2. Weighting Strategy: The "Human Priority" Lens
+
+We recommend following the **Distance-Weighting** principle (Trope & Liberman, 2010):
+
+- **Spatial Proximity**: `personal` (1.0) > `neighbor` (0.8).
+- **Social Proximity**: `community_feedback` (0.6) > `abstract_news` (0.4).
+- **Vividness**: High-trauma events (`direct_impact`) should always decay slower than routine updates.
+
+---
+
+## 📜 References (APA)
+
+The architecture is derived from and contributes to the following literature:
+
+1.  **Park, J. S., ... & Bernstein, M. S.** (2023). Generative Agents: Interactive Simulacra of Human Behavior. _ACM CHI_.
+2.  **Trope, Y., & Liberman, N.** (2010). Construal-level theory of psychological distance. _Psychological Review_, 117(2), 440.
+3.  **Tversky, A., & Kahneman, D.** (1973). Availability: A heuristic for judging frequency and probability. _Cognitive Psychology_, 5(2), 207-232.
+4.  **Siegrist, M., & Gutscher, H.** (2008). Natural hazards and motivation for self-protection: Memory matters. _Risk Analysis_, 28(3), 771-778.
+5.  **Rogers, R. W.** (1983). Cognitive and physiological processes in fear appeals and attitude change: A revised theory of protection motivation. _Social Psychophysiology_.
+6.  **Ebbinghaus, H.** (1885). _Memory: A Contribution to Experimental Psychology_. (The Forgetting Curve basis).
 
 ---
 

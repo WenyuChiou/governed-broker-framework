@@ -26,7 +26,7 @@ class SkillProposal:
     The LLM proposes a skill (abstract behavior) rather than specifying
     concrete actions or tools. The Broker validates and maps to execution.
     """
-    skill_name: str              # Abstract behavior name (e.g., "buy_insurance")
+    skill_name: str              # Abstract behavior name (e.g., "action_a", "skill_x")
     agent_id: str
     reasoning: Dict[str, str]    # PMT appraisals: {"threat": "...", "coping": "..."}
     agent_type: str = "default"  # Agent type for multi-agent scenarios
@@ -112,6 +112,30 @@ class ExecutionResult:
             "state_changes": self.state_changes,
             "error": self.error
         }
+
+
+@dataclass
+class InterventionReport:
+    """
+    Report generated when the Skill Broker blocks a proposed action.
+    
+    This report provides structured, human-readable feedback to inform
+    the LLM's retry attempt. It is the core of Explainable Governance.
+    """
+    rule_id: str                           # ID of the rule that blocked the action
+    blocked_skill: str                     # The skill that was blocked
+    violation_summary: str                 # Human-readable explanation of the violation
+    suggested_correction: Optional[str] = None  # Optional hint for the agent
+    severity: str = "ERROR"                # ERROR, WARNING
+    domain_context: Dict[str, Any] = field(default_factory=dict) # e.g., {"physical_constraint": "cannot elevate twice"}
+
+    def to_prompt_string(self) -> str:
+        """Format the report as a string suitable for injection into an LLM prompt."""
+        s = f"- [{self.severity}] Your proposed action '{self.blocked_skill}' was BLOCKED.\n"
+        s += f"  - Reason: {self.violation_summary}\n"
+        if self.suggested_correction:
+            s += f"  - Suggestion: {self.suggested_correction}\n"
+        return s
 
 
 @dataclass

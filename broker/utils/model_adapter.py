@@ -452,12 +452,15 @@ class UnifiedAdapter(ModelAdapter):
             digit_matches = re.findall(r'(\d)', cleaned_target)
             candidates = bracket_matches if bracket_matches else digit_matches
             
-            if candidates and not strict_mode:
+            # Allow digit extraction as last resort during retries even in strict mode
+            is_retry = context.get("retry_attempt", 0) > 0
+            
+            if candidates and (not strict_mode or is_retry):
                 last_digit = candidates[-1]
                 if last_digit in skill_map:
                     skill_name = skill_name or skill_map[last_digit]
-                    parse_layer = parse_layer or "digit"
-                    parsing_warnings.append(f"Last-resort extraction from digit: {last_digit}")
+                    parse_layer = parse_layer or "digit_fallback"
+                    parsing_warnings.append(f"Retry-based extraction from digit: {last_digit}")
             elif candidates and strict_mode and not skill_name:
                 # Log the failed parse attempt for audit but do NOT use the digit
                 parsing_warnings.append(f"STRICT_MODE: Rejected digit extraction ({candidates[-1]}). Will trigger retry.")
@@ -581,15 +584,18 @@ class UnifiedAdapter(ModelAdapter):
         cited_anchors = []
         
         # 1. Extract Target Anchors from Context
-        # We look for specific keys populated by HouseholdGroundingProvider
-        sources = {
-            "persona": context.get("narrative_persona", ""),
-            "experience": context.get("flood_experience_summary", "")
-        }
-        
+        # Source fields are configurable via 'audit_context_fields' in parsing config
+        # Default fields are domain-agnostic
+        default_fields = ["narrative_persona", "experience_summary"]
+        context_fields = parsing_cfg.get("audit_context_fields", default_fields)
+        sources = {field: context.get(field, "") for field in context_fields}
+
         # 2. Extract Keywords (Simple stopword filtering)
-        # Keywords to look for: "generation", "income", "years", "2012", "loss"
-        blacklist = {"you", "are", "a", "the", "in", "of", "to", "and", "manageable", "resident", "household", "with", "this", "that", "have", "from"}
+        # Generic English stopwords - domain-specific stopwords should be in config
+        default_blacklist = {"you", "are", "a", "the", "in", "of", "to", "and", "with", "this", "that", "have", "from", "for", "on", "is", "it", "be", "as", "at", "by"}
+        # Load additional stopwords from config (domain-specific terms)
+        config_blacklist = set(parsing_cfg.get("audit_blacklist", []))
+        blacklist = default_blacklist | config_blacklist
         # Topic words that are too generic to count as grounding
         # v1.1: Load from config 'audit_stopwords'
         topic_stopwords = set(parsing_cfg.get("audit_stopwords", ["decision", "choice", "action", "reason"]))
@@ -635,13 +641,40 @@ class UnifiedAdapter(ModelAdapter):
         }
 
     
-    def format_retry_prompt(self, original_prompt: str, errors: List[str]) -> str:
-        """Format retry prompt with validation errors."""
-        error_text = ", ".join(errors)
-        return f"""Your previous response was flagged for the following issues:
+    def format_retry_prompt(self, original_prompt: str, errors: List[Any], max_reports: Optional[int] = None) -> str:
+        """
+        Format retry prompt with validation errors or InterventionReports.
+        
+        Supports both legacy List[str] errors and new List[InterventionReport] for XAI.
+        """
+        from ..interfaces.skill_types import InterventionReport
+        
+        if max_reports and len(errors) > max_reports:
+            logger.warning(f" [Adapter] Truncating retry reports from {len(errors)} to {max_reports} to save context.")
+            errors = errors[:max_reports]
+            truncated = True
+        else:
+            truncated = False
+
+        error_lines = []
+        for e in errors:
+            if isinstance(e, InterventionReport):
+                error_lines.append(e.to_prompt_string())
+            elif isinstance(e, str):
+                error_lines.append(f"- {e}")
+            else:
+                error_lines.append(f"- {str(e)}")
+        
+        if truncated:
+            error_lines.append(f"\n[!NOTE] There were more issues detected, but only the top {max_reports} are shown for brevity. Please fix these first.")
+        
+        error_text = "\n".join(error_lines)
+        return f"""Your previous response was flagged by the governance layer.
+
+**Issues Detected:**
 {error_text}
 
-Please reconsider your decision and respond again.
+Please reconsider your decision. Ensure your new response addresses the violations above.
 
 {original_prompt}"""
 

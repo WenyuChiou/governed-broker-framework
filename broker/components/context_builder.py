@@ -109,6 +109,39 @@ class AttributeProvider(ContextProvider):
         if hasattr(agent, 'get_available_skills'):
             context["available_skills"] = agent.get_available_skills()
 
+
+class PrioritySchemaProvider(ContextProvider):
+    """
+    Provider that applies domain-specific priority weights to context attributes.
+    
+    Loads weights from YAML config to maintain domain-agnosticism.
+    Example config:
+        priority_schema:
+          hydrology: {damage: 1.0, elevated: 0.9, flood_threshold: 0.8}
+          finance: {liquidity_ratio: 1.0, yield: 0.9}
+    """
+    def __init__(self, schema: Dict[str, float] = None):
+        self.schema = schema or {}
+    
+    def provide(self, agent_id, agents, context, **kwargs):
+        if not self.schema:
+            return
+        
+        state = context.get("state", {})
+        priority_items = []
+        
+        for attr, priority in sorted(self.schema.items(), key=lambda x: -x[1]):
+            if attr in state:
+                priority_items.append({
+                    "attribute": attr,
+                    "value": state[attr],
+                    "priority": priority
+                })
+        
+        context["priority_schema"] = priority_items
+        context["_priority_attributes"] = list(self.schema.keys())
+
+
 class EnvironmentProvider(ContextProvider):
     """Provides perception signals from the environment."""
     def __init__(self, environment: Dict[str, float]):
@@ -147,12 +180,14 @@ class BaseAgentContextBuilder(ContextBuilder):
         providers: List[ContextProvider] = None,
         extend_providers: List[ContextProvider] = None,  # New: additive providers
         semantic_thresholds: tuple = (0.3, 0.7),
-        yaml_path: Optional[str] = None
+        yaml_path: Optional[str] = None,
+        max_prompt_tokens: int = 16384
     ):
         self.agents = agents
         self.prompt_templates = prompt_templates or {}
         self.semantic_thresholds = semantic_thresholds
         self.yaml_path = yaml_path
+        self.max_prompt_tokens = max_prompt_tokens
 
         
         # Standard: Enforce 0-1 normalization for universal parameters
@@ -270,7 +305,7 @@ class BaseAgentContextBuilder(ContextBuilder):
         }
         
         # Add individual state variables (for custom templates)
-        # e.g. {loss_ratio} or {elevated}
+        # e.g. {income_level}, {risk_tolerance}, etc.
         for k, v in state.items():
             if isinstance(v, (str, int, float, bool)):
                 template_vars[k] = v
@@ -304,8 +339,14 @@ class BaseAgentContextBuilder(ContextBuilder):
         # Context size monitoring (Phase 25 PR4)
         # Rough token estimate: ~4 chars per token for English text
         token_estimate = len(formatted) // 4
-        if token_estimate > 2000:
-            logger.warning(f"[Context:Warning] Large prompt for {context.get('agent_id', 'unknown')}: ~{token_estimate} tokens")
+        if token_estimate > self.max_prompt_tokens:
+            logger.warning(
+                f"[Context:Warning] Prompt exceeds limit for {context.get('agent_id', 'unknown')}: "
+                f"~{token_estimate} tokens (limit {self.max_prompt_tokens})"
+            )
+            raise RuntimeError(
+                f"Prompt token estimate {token_estimate} exceeds limit {self.max_prompt_tokens}"
+            )
         
         return formatted
     
@@ -432,10 +473,12 @@ class NarrativeProvider(ContextProvider):
         # Otherwise, look for common 'persona' or 'history' patterns.
         
         # 1. Narrative Persona (Generic)
+        # Build persona from all non-internal fixed attributes
         persona_parts = []
+        # Exclude internal/computed fields
+        exclude_keys = {"id", "agent_type", "config", "skills", "custom_attributes"}
         for k, v in fixed.items():
-            if k in ["residency_generations", "household_size", "occupation", "income_range"]:
-                # Legacy compatibility for Flood scenario
+            if k not in exclude_keys and isinstance(v, (str, int, float)):
                 label = k.replace('_', ' ').capitalize()
                 persona_parts.append(f"{label}: {v}")
         
@@ -467,7 +510,8 @@ class TieredContextBuilder(BaseAgentContextBuilder):
         memory_engine: Optional[MemoryEngine] = None,
         trust_verbalizer: Optional[Callable[[float, str], str]] = None,
         dynamic_whitelist: List[str] = None,
-        yaml_path: Optional[str] = None
+        yaml_path: Optional[str] = None,
+        max_prompt_tokens: int = 16384
     ):
         providers = [
             DynamicStateProvider(dynamic_whitelist),
@@ -484,7 +528,8 @@ class TieredContextBuilder(BaseAgentContextBuilder):
             agents=agents, 
             prompt_templates=prompt_templates, 
             providers=providers,
-            yaml_path=yaml_path
+            yaml_path=yaml_path,
+            max_prompt_tokens=max_prompt_tokens
         )
 
         self.hub = hub
@@ -568,6 +613,20 @@ class TieredContextBuilder(BaseAgentContextBuilder):
         template_vars["global_section"] = self._format_generic_section("WORLD EVENTS", {"news": g})
         template_vars["institutional_section"] = self._format_generic_section("INSTITUTIONAL & POLICY", inst)
 
+        # Phase 29: Pillar 3 - Priority Schema Rendering
+        # Explicitly render Priority Schema items as a "CRITICAL FACTORS" block
+        priority_items = context.get("priority_schema", [])
+        if priority_items:
+            priority_lines = ["### [CRITICAL FACTORS (Focus Here)]"]
+            for item in priority_items:
+                attr = item.get("attribute", "unknown").upper()
+                val = item.get("value", "N/A")
+                prio = item.get("priority", 0.0)
+                priority_lines.append(f"- {attr}: {val} (Priority: {prio:.1f})")
+            template_vars["priority_section"] = "\n".join(priority_lines)
+        else:
+            template_vars["priority_section"] = ""
+
         # 2. Options Section (Universal)
         agent_id = p.get('id')
         agent = self.agents.get(agent_id)
@@ -632,14 +691,24 @@ class TieredContextBuilder(BaseAgentContextBuilder):
         
         # 4. Use template (Generic lookup)
         agent_type = p.get('agent_type', 'default')
-        default_template = "{system_prompt}\n\n{personal_section}\n\n{local_section}\n\n{institutional_section}\n\n{global_section}\n\n### [AVAILABLE OPTIONS]\n{options_text}"
+        default_template = "{system_prompt}\n\n{priority_section}\n\n{personal_section}\n\n{local_section}\n\n{institutional_section}\n\n{global_section}\n\n### [AVAILABLE OPTIONS]\n{options_text}"
         template = self.prompt_templates.get(agent_type, default_template)
         
         # If the template doesn't include {system_prompt}, prepend it
         if "{system_prompt}" not in template:
-            template = "{system_prompt}\n\n" + template
+            template = "{system_prompt}\n\n{priority_section}\n\n" + template
             
-        return SafeFormatter().format(template, **template_vars)
+        formatted = SafeFormatter().format(template, **template_vars)
+        token_estimate = len(formatted) // 4
+        if token_estimate > self.max_prompt_tokens:
+            logger.warning(
+                f"[Context:Warning] Prompt exceeds limit for {context.get('agent_id', 'unknown')}: "
+                f"~{token_estimate} tokens (limit {self.max_prompt_tokens})"
+            )
+            raise RuntimeError(
+                f"Prompt token estimate {token_estimate} exceeds limit {self.max_prompt_tokens}"
+            )
+        return formatted
 
 
     def _format_generic_section(self, title: str, data: Dict[str, Any]) -> str:
@@ -733,7 +802,8 @@ def create_context_builder(
     yaml_path: str = None,
     memory_engine: Optional[MemoryEngine] = None,
     semantic_thresholds: tuple = (0.3, 0.7),
-    hub: Optional['InteractionHub'] = None
+    hub: Optional['InteractionHub'] = None,
+    max_prompt_tokens: int = 16384
 ) -> 'BaseAgentContextBuilder':
     """
     Create a context builder for a set of agents.
@@ -765,7 +835,8 @@ def create_context_builder(
             hub=hub,
             prompt_templates=templates,
             memory_engine=memory_engine,
-            yaml_path=yaml_path
+            yaml_path=yaml_path,
+            max_prompt_tokens=max_prompt_tokens
         )
 
     
@@ -774,7 +845,8 @@ def create_context_builder(
         environment=environment,
         prompt_templates=templates,
         memory_engine=memory_engine,
-        semantic_thresholds=semantic_thresholds
+        semantic_thresholds=semantic_thresholds,
+        max_prompt_tokens=max_prompt_tokens
     )
 
 

@@ -60,12 +60,12 @@ class CoherenceRule:
 class AgentTypeConfig:
     """
     Loader for agent type configurations.
-    
+
     Usage:
         config = AgentTypeConfig.load()
-        household = config.get("household")
-        valid_actions = household["actions"]
-        rules = household["validation_rules"]
+        agent_cfg = config.get("my_agent_type")  # e.g., "household", "trader", etc.
+        valid_actions = agent_cfg["actions"]
+        rules = agent_cfg["validation_rules"]
     """
     
     _instance = None
@@ -119,10 +119,34 @@ class AgentTypeConfig:
         """Allow checking agent types."""
         return self._config.keys()
     
-    def get_shared(self, key: str, default: str = "") -> str:
+    def get_shared(self, key: str, default: Any = "") -> Any:
         """Get shared config value (e.g., rating_scale)."""
         shared = self._config.get("shared", {})
         return shared.get(key, default)
+    
+    def get_governance_retries(self, default: int = 3) -> int:
+        """Get max retries for governance loop."""
+        gov = self._config.get("shared", {}).get("governance", {})
+        return gov.get("max_retries", default)
+    
+    def get_governance_max_reports(self, default: int = 3) -> int:
+        """Get max reports to send back in a single retry prompt."""
+        gov = self._config.get("shared", {}).get("governance", {})
+        return gov.get("max_reports_per_retry", default)
+    
+    def get_llm_retries(self, default: int = 2) -> int:
+        """Get max retries for raw LLM invocation."""
+        llm = self._config.get("shared", {}).get("llm", {})
+        return llm.get("max_retries", default)
+    
+    def get_reflection_config(self) -> dict:
+        """Get reflection configuration from shared settings.
+        
+        Returns dict with keys: interval, batch_size, importance_boost
+        """
+        defaults = {"interval": 1, "batch_size": 10, "importance_boost": 0.9}
+        reflection = self._config.get("shared", {}).get("reflection", {})
+        return {k: reflection.get(k, v) for k, v in defaults.items()}
     
     def get_valid_actions(self, agent_type: str) -> List[str]:
         """Get all valid action IDs and aliases for agent type."""
@@ -347,6 +371,11 @@ class AgentTypeConfig:
         if not parsing:
             return {}
             
+        # 0. Check for dynamic_skill_map (Priority for transient mappings)
+        dynamic = context.get("dynamic_skill_map") if context else None
+        if dynamic:
+            return dynamic
+
         # 1. Check for explicit skill_variant
         variant = context.get("skill_variant") if context else None
         if variant:
